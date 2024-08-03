@@ -1,10 +1,12 @@
-## To run the app you need to clone
-1. picamera 
-2. dlib
+### Note: you may need to install [C++ build tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) to install dlib on windows
 
-<u>**dlib:**</u>
+---
 
-``` commandline
+__Start by running `pip install -r .\requirements.txt`__
+
+<u>**install dlib:**</u>
+
+```commandline
 git clone https://github.com/davisking/dlib.git
 cd dlib
 mkdir build
@@ -13,13 +15,20 @@ cmake ..
 cmake --build .
 cd ..
 python setup.py install
+cd ..
 ```
 
-<u>**picamera:**</u>
+<u>**install picamera:**</u>
 
 ```commandline
 git clone https://github.com/waveform80/picamera.git
 cd picamera
 python setup.py install
+cd ..
 ```
+
+### Now all the dependencies should be installed and we can install face recognition:
+`
+pip install face_recognition
+`
 

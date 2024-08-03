@@ -1,0 +1,4 @@
+imutils
+opencv-python
+face_recognition
+setuptools

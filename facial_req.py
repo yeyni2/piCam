@@ -21,10 +21,7 @@ encodingsP = "encodings.pickle"
 print("[INFO] loading encodings + face detector...")
 data = pickle.loads(open(encodingsP, "rb").read())
 
-# initialize the video stream and allow the camera sensor to warm up
-# Set the ser to the following
-# src = 0 : for the build in single web-cam, could be your laptop webcam
-# src = 2 : I had to set it to 2 inorder to use the USB webcam attached to my laptop
+# initialize the video stream
 vs = VideoStream(src=0,framerate=10).start()
 #vs = VideoStream(usePiCamera=True).start()
 time.sleep(2.0)

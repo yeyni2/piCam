@@ -1,6 +1,8 @@
+from firebase_connection import get_firestore_ref, send_message
 from imutils.video import VideoStream
+from typing import Tuple, List
 from imutils.video import FPS
-import time
+
 import face_recognition
 import imutils
 import pickle
@@ -19,6 +21,58 @@ last_seen_names = {}
 
 # Make an operation only if person wasn't seen for the last 10 minutes or more
 notification_time_threshold = 10 * 60
+
+
+def check_recently_seen(name: str):
+    if name in last_seen_names:
+        if time.time() - last_seen_names[name] >= notification_time_threshold:
+            last_seen_names[name] = time.time()
+            return False
+    else:
+        last_seen_names[name] = time.time()
+        return False
+    return True
+
+
+def get_relevant_msg(seen_names: set) -> Tuple[bool, List[str]]:
+    relevant_names = []
+    for name in list(seen_names):
+        if not check_recently_seen(name):
+            relevant_names.append(name)
+
+    if len(relevant_names) == 0:
+        return False, []
+
+    if len(relevant_names) == 1:
+        name = relevant_names[0]
+        if name == "unknown":
+            msg_title = "Unknown person is at the door"
+        else:
+            msg_title = f"{name} is at the door"
+        return True, [msg_title, ""]
+
+    if "unknown" in relevant_names:
+        relevant_names.remove("unknown")
+
+    connected_names = ', '.join(relevant_names)
+    msg_title = "Spotted people at the door"
+    msg_body = f"{connected_names} are at the door"
+
+    return True, [msg_title, msg_body]
+
+
+def notify_relevant_users(seen_names: set, cam_name: str = "piCam") -> None:
+    cam_details = get_firestore_ref(collection="cameras", document=cam_name).get()
+    if not cam_details.exists:
+        return
+
+    should_send, msg = get_relevant_msg(seen_names)
+    if not should_send:
+        return
+
+    for user_id in cam_details.get("usersToNotify"):
+        user_info = get_firestore_ref(collection="users", document=user_id).get()
+        send_message(token=user_info.get("messageToken"), message_title=msg[0], message_body=msg[1])
 
 
 def activate_camera(frame_info=None, show_on_screen=False):
@@ -49,20 +103,11 @@ def activate_camera(frame_info=None, show_on_screen=False):
                     counts[name] = counts.get(name, 0) + 1
 
                 name = max(counts, key=counts.get)
-
-                if currentname != name:
-                    currentname = name
-
-                    if name in last_seen_names:
-                        if time.time() - last_seen_names[name] >= notification_time_threshold:
-                            last_seen_names[name] = time.time()
-                            print(currentname, "is at the door")
-                            # TODO: here add any activity like sending a notification.
-                    else:
-                        last_seen_names[name] = time.time()
-                        print(currentname, "is at the door")
+                currentname = name
 
             names.append(name)
+
+        notify_relevant_users(seen_names=set(names))
 
         #  Only after all the names where found check by the last time
 

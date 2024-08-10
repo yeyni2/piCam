@@ -3,6 +3,11 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/dlib/build" />
+      <excludeFolder url="file://$MODULE_DIR$/dlib/tools/python/dlib.egg-info" />
+      <excludeFolder url="file://$MODULE_DIR$/picamera/build" />
+      <excludeFolder url="file://$MODULE_DIR$/picamera/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/picamera/picamera.egg-info" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

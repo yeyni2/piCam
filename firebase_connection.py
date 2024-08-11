@@ -36,6 +36,6 @@ def send_message(token, message_title: str = "", message_body: str = ""):
         print('Error sending message:', e)
 
 
-initialize_firebase()
+# initialize_firebase()
 token = "cRK_UPv_WQ3Xb0TfvUSPxS:APA91bFKb73XEQNOk3-1RCfMcJpYep3n58l-H2oxyoCErrp5a4qvqMmCTTH1WL0_O0k0B3UarOpuv37pVYnkTXS-_Ta3sVnkQ7wLqdevjE-tk80hnEyysVnD4BIgQ-bHgBT8xKpi8gaJ"
 send_message(token, "test_title", "body_title")

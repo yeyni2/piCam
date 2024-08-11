@@ -22,6 +22,9 @@ messaging.onBackgroundMessage((payload) => {
   const notificationOptions = {
     body: payload.notification.body,
   };
-
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  try {
+    self.registration.showNotification(notificationTitle, notificationOptions);
+  } catch (e) {
+    console.error(e);
+  }
 });

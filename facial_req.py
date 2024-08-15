@@ -2,15 +2,18 @@ from firebase_connection import get_firestore_ref, send_message
 from imutils.video import VideoStream
 from typing import Tuple, List
 from imutils.video import FPS
-from picamera2 import Picamera2
+# from picamera2 import Picamera2
 
 import face_recognition
 import imutils
 import pickle
 import time
 import cv2
+import os
 
-encodingsP = "encodings.pickle"
+dir_path = os.path.dirname(os.path.realpath(__file__))
+encodingsP = os.path.join(dir_path, 'encodings.pickle')
+
 
 print("INFO: loading known faces")
 data = pickle.loads(open(encodingsP, "rb").read())

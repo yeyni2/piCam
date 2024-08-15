@@ -9,8 +9,11 @@ import imutils
 import pickle
 import time
 import cv2
+import os
 
-encodingsP = "encodings.pickle"
+dir_path = os.path.dirname(os.path.realpath(__file__))
+encodingsP = os.path.join(dir_path, 'encodings.pickle')
+
 
 print("INFO: loading known faces")
 data = pickle.loads(open(encodingsP, "rb").read())

@@ -69,7 +69,7 @@ def main():
     t = threading.Thread(target=activate_camera, args=(frame_info,))
     t.daemon = True
     t.start()
-    app.run(host='0.0.0.0', port=5050)
+    app.run(host='0.0.0.0', port=3000)
 
 
 if __name__ == '__main__':

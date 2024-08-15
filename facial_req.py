@@ -2,6 +2,7 @@ from firebase_connection import get_firestore_ref, send_message
 from imutils.video import VideoStream
 from typing import Tuple, List
 from imutils.video import FPS
+from picamera2 import Picamera2
 
 import face_recognition
 import imutils
@@ -13,8 +14,16 @@ encodingsP = "encodings.pickle"
 
 print("INFO: loading known faces")
 data = pickle.loads(open(encodingsP, "rb").read())
-vs = VideoStream(src=0, framerate=10).start()
-# vs = VideoStream(usePiCamera=True).start()
+# For PC
+# vs = VideoStream(src=0, framerate=10).start()
+
+# Pi:
+vs = Picamera2()
+config = vs.create_still_configuration(main={"format": "RGB888"})
+vs.configure(config)
+vs.start()
+# vs.capture_file("test.jpg") - test image
+
 time.sleep(2.0)
 fps = FPS().start()
 last_seen_names = {}
@@ -82,7 +91,8 @@ def activate_camera(frame_info=None, show_on_screen=False):
     currentname = "unknown"
 
     while True:
-        frame = vs.read()
+        # frame = vs.read() - For PC useage
+        frame = vs.capture_array()
         frame = imutils.resize(frame, width=500)
         # Separate to face_rec function
         boxes = face_recognition.face_locations(frame)
@@ -107,7 +117,8 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
             names.append(name)
 
-        notify_relevant_users(seen_names=set(names))
+        if len(names) != 0:
+            notify_relevant_users(seen_names=set(names))
 
         #  Only after all the names where found check by the last time
 

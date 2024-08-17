@@ -2,6 +2,8 @@
 
 ---
 
+__Create a venv: `python3 -m venv venv --system-site-packages`__
+
 __Start by running `pip install -r .\requirements.txt`__
 
 <u>**install dlib:**</u>

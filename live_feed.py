@@ -59,11 +59,6 @@ def serve_vue_app(path):
         return send_from_directory(app.static_folder, 'index.html')
 
 
-# @app.route('/<path:path>')
-# def static_proxy(path):
-#     return send_from_directory(app.static_folder, path)
-
-
 def main():
     initialize_firebase()
     t = threading.Thread(target=activate_camera, args=(frame_info,))

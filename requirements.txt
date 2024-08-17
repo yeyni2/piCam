@@ -6,4 +6,3 @@ flask
 firebase_admin
 flask_cors
 picamera2
-os

@@ -2,7 +2,7 @@ from firebase_connection import get_firestore_ref, send_message
 from imutils.video import VideoStream
 from typing import Tuple, List
 from imutils.video import FPS
-# from picamera2 import Picamera2
+from picamera2 import Picamera2
 
 import face_recognition
 import imutils

@@ -14,10 +14,9 @@ import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
 encodingsP = os.path.join(dir_path, 'encodings.pickle')
 
-
 print("INFO: loading known faces")
 data = pickle.loads(open(encodingsP, "rb").read())
-# For PC
+# PC
 # vs = VideoStream(src=0, framerate=10).start()
 
 # Pi:

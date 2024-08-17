@@ -5,4 +5,5 @@ setuptools
 flask
 firebase_admin
 flask_cors
+numpy
 picamera2

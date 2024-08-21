@@ -30,18 +30,18 @@ def update_cam(cam_name: str = "piCam", users_to_notify: list = None, users_with
         notify_uid = []
 
         for user_email in set(users_to_notify):
-            notify_uid.append(auth.get_user_by_email(user_email))
+            notify_uid.append(auth.get_user_by_email(user_email).uid)
 
         if admin_uid not in notify_uid:
             notify_uid.append(admin_uid)
 
-        data["userToNotify"] = notify_uid
+        data["usersToNotify"] = notify_uid
 
     if users_with_video_access is not None:
         video_uid = []
 
         for user_email in set(users_with_video_access):
-            video_uid.append(auth.get_user_by_email(user_email))
+            video_uid.append(auth.get_user_by_email(user_email).uid)
 
         if admin_uid not in video_uid:
             video_uid.append(admin_uid)
@@ -55,8 +55,8 @@ def update_cam(cam_name: str = "piCam", users_to_notify: list = None, users_with
 
 if __name__ == '__main__':
     initialize_firebase()
-    email = "liranyeyni1620@gmail.com"
-    password = ""
+    email = "itzik.yeyni@gmail.com"
+    password = "itz1620"
     # create_user(email=email, password=password )
     # create_cam(admin_email=email)
-    update_cam(users_with_video_access=[email])
+    update_cam(users_with_video_access=[email], users_to_notify=[email])

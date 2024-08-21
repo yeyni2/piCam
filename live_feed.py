@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, Response, request, send_from_directory, render_template
+from flask import Flask, Response, request, send_from_directory
 from firebase_connection import get_firestore_ref, initialize_firebase
 from facial_req import activate_camera
 from firebase_admin import auth
@@ -25,9 +25,17 @@ def gen_frames():
 
 @app.route('/api/video_feed')
 def video_feed():
-    user_id = request.args.get('user_id')
-    user_ref = get_firestore_ref(collection='users', document=user_id)
-    if not user_ref.get().exists:
+    user_id_token = request.args.get('user_id_token')
+    try:
+        decoded_token = auth.verify_id_token(user_id_token)
+        user_id = decoded_token['uid']
+    except auth.InvalidIdTokenError:
+        return 'Invalid ID token', 401
+    except Exception as e:
+        return "something went wrong", 500
+
+    cam_ref = get_firestore_ref(collection="cameras", document="piCam")
+    if user_id not in cam_ref.get().get("videoAccess"):
         return "unauthorised access", 500
     return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
@@ -35,16 +43,18 @@ def video_feed():
 @app.route('/api/set_token', methods=['POST'])
 def set_user_token():
     data = request.get_json()
-    user_id = data.get('userId')
+    user_id_token = data.get("userIdToken")
     token = data.get('token')
+    try:
+        decoded_token = auth.verify_id_token(user_id_token)
+        user_id = decoded_token['uid']
+    except auth.InvalidIdTokenError:
+        return 'Invalid ID token', 401
+    except Exception as e:
+        return "something went wrong", 500
+
     user_ref = get_firestore_ref(collection='users', document=user_id)
     if not user_ref.get().exists:
-        try:
-            auth.delete_user(user_id)
-        except auth.UserNotFoundError:
-            return "", 500
-        except Exception as e:
-            return "something went wrong", 500
         return "unauthorised access", 500
     user_ref.update({"messageToken": token})
     return "", 200

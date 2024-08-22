@@ -1,12 +1,1 @@
-{
-  "short_name": "picam",
-  "name": "picam",
-  "icons": [],
-  "id": "/",
-  "start_url": "/",
-  "background_color": "#FFFFFF",
-  "display": "standalone",
-  "scope": "/",
-  "theme_color": "#FFFFFF",
-  "description": "Notification about people at the door"
-}
+{"name":"picam","short_name":"picam","theme_color":"#FFFFFF","icons":[],"start_url":"/","display":"standalone","background_color":"#FFFFFF","id":"/","scope":"/","description":"Notification about people at the door"}

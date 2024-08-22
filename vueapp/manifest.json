@@ -1,0 +1,12 @@
+{
+  "short_name": "picam",
+  "name": "picam",
+  "icons": [],
+  "id": "/",
+  "start_url": "/",
+  "background_color": "#FFFFFF",
+  "display": "standalone",
+  "scope": "/",
+  "theme_color": "#FFFFFF",
+  "description": "Notification about people at the door"
+}

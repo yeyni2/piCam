@@ -17,7 +17,7 @@ encodingsP = os.path.join(dir_path, 'encodings.pickle')
 print("INFO: loading known faces")
 data = pickle.loads(open(encodingsP, "rb").read())
 # PC
-vs = VideoStream(src=0, framerate=10).start()
+# vs = VideoStream(src=0, framerate=10).start()
 
 # Pi:
 vs = Picamera2()

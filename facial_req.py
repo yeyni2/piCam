@@ -2,7 +2,7 @@ from firebase_connection import get_firestore_ref, send_message
 from imutils.video import VideoStream
 from typing import Tuple, List
 from imutils.video import FPS
-from picamera2 import Picamera2
+# from picamera2 import Picamera2
 
 import face_recognition
 import imutils
@@ -17,13 +17,13 @@ encodingsP = os.path.join(dir_path, 'encodings.pickle')
 print("INFO: loading known faces")
 data = pickle.loads(open(encodingsP, "rb").read())
 # PC
-# vs = VideoStream(src=0, framerate=10).start()
+vs = VideoStream(src=0, framerate=10).start()
 
 # Pi:
-vs = Picamera2()
-config = vs.create_still_configuration(main={"format": "RGB888"})
-vs.configure(config)
-vs.start()
+# vs = Picamera2()
+# config = vs.create_still_configuration(main={"format": "RGB888"})
+# vs.configure(config)
+# vs.start()
 # vs.capture_file("test.jpg") - test image
 
 time.sleep(2.0)
@@ -54,6 +54,18 @@ def get_relevant_msg(seen_names: set) -> Tuple[bool, List[str]]:
     if len(relevant_names) == 0:
         return False, []
 
+    if len(relevant_names) == 1 and relevant_names[0] == "unknown":
+        last_known_gap = 60*5
+    else:
+        last_known_gap = 60*2
+
+    if ("last_notification_time" in last_seen_names and
+            time.time() - last_seen_names["last_notification_time"] < last_known_gap):
+        return False, []
+
+    if "unknown" in relevant_names and len(relevant_names) >= 2:
+        relevant_names.remove("unknown")
+
     if len(relevant_names) == 1:
         name = relevant_names[0]
         if name == "unknown":
@@ -62,11 +74,8 @@ def get_relevant_msg(seen_names: set) -> Tuple[bool, List[str]]:
             msg_title = f"{name} is at the door"
         return True, [msg_title, ""]
 
-    if "unknown" in relevant_names:
-        relevant_names.remove("unknown")
-
     connected_names = ', '.join(relevant_names)
-    msg_title = "Spotted people at the door"
+    msg_title = "multiple people spotted at the door"
     msg_body = f"{connected_names} are at the door"
 
     return True, [msg_title, msg_body]
@@ -78,8 +87,11 @@ def notify_relevant_users(seen_names: set, cam_name: str = "piCam") -> None:
         return
 
     should_send, msg = get_relevant_msg(seen_names)
+
     if not should_send:
         return
+
+    last_seen_names["last_notification_time"] = time.time()
 
     for user_id in cam_details.get("usersToNotify"):
         user_info = get_firestore_ref(collection="users", document=user_id).get()
@@ -94,21 +106,24 @@ def activate_camera(frame_info=None, show_on_screen=False):
     if frame_info is None:
         frame_info = {}
 
+    frames_validate_count = 0
     currentname = "unknown"
+    names = []
 
     while True:
-        # frame = vs.read() # - For PC usage
-        frame = vs.capture_array()
+        frame = vs.read()  # - For PC usage
+        # frame = vs.capture_array()
         frame = imutils.resize(frame, width=500)
         # Separate to face_rec function
         boxes = face_recognition.face_locations(frame)
         encodings = face_recognition.face_encodings(frame, boxes)
-        names = []
+        frames_validate_count += 1
+
         # Separate to find_names
         for encoding in encodings:
             matches = face_recognition.compare_faces(data["encodings"],
                                                      encoding)
-            name = "Unknown"
+            name = "unknown"
 
             if True in matches:
                 matchedIdxs = [i for (i, b) in enumerate(matches) if b]
@@ -123,8 +138,11 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
             names.append(name)
 
-        if len(names) != 0:
-            notify_relevant_users(seen_names=set(names))
+        if frames_validate_count == 5:
+            frames_validate_count = 0
+            if len(names) != 0:
+                notify_relevant_users(seen_names=set(names))
+                name = []
 
         #  Only after all the names where found check by the last time
 

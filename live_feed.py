@@ -10,7 +10,7 @@ from flask_cors import CORS
 
 app = Flask(__name__, static_folder="vueapp")
 CORS(app)
-frame_info = {"frame": "", "frame_rate": 5}
+frame_info = {"frame": "", "user_connection": False}
 
 
 def gen_frames():
@@ -23,7 +23,7 @@ def gen_frames():
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
     except GeneratorExit:
-        frame_info["frame_rate"] = 5
+        frame_info["user_connection"] = False
 
 
 @app.route('/api/video_feed')
@@ -41,7 +41,7 @@ def video_feed():
     if user_id not in cam_ref.get().get("videoAccess"):
         return "unauthorised access", 500
 
-    frame_info["frame_rate"] = 30
+    frame_info["user_connection"] = True
 
     return Response(stream_with_context(gen_frames()), mimetype='multipart/x-mixed-replace; boundary=frame')
 

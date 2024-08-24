@@ -1,7 +1,6 @@
 from firebase_connection import get_firestore_ref, send_message
 from imutils.video import VideoStream
 from typing import Tuple, List
-from imutils.video import FPS
 from picamera2 import Picamera2
 
 import face_recognition
@@ -27,11 +26,11 @@ vs.start()
 # vs.capture_file("test.jpg") - test image
 
 time.sleep(2.0)
-fps = FPS().start()
 last_seen_names = {}
 
 # Make an operation only if person wasn't seen for the last 10 minutes or more
 notification_time_threshold = 10 * 60
+active_user_connection_fps = 20
 
 
 def check_recently_seen(name: str):
@@ -55,9 +54,9 @@ def get_relevant_msg(seen_names: set) -> Tuple[bool, List[str]]:
         return False, []
 
     if len(relevant_names) == 1 and relevant_names[0] == "unknown":
-        last_known_gap = 60*5
+        last_known_gap = 60 * 5
     else:
-        last_known_gap = 60*2
+        last_known_gap = 60 * 2
 
     if ("last_notification_time" in last_seen_names and
             time.time() - last_seen_names["last_notification_time"] < last_known_gap):
@@ -107,6 +106,7 @@ def activate_camera(frame_info=None, show_on_screen=False):
         frame_info = {}
 
     frames_validate_count = 0
+    frame_rate = 0.5
     currentname = "unknown"
     names = []
 
@@ -139,21 +139,29 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
             names.append(name)
 
-        if frames_validate_count == 5:
+        if frame_info["user_connection"]:
+            frame_rate = active_user_connection_fps
+        elif len(names) != 0:
+            frame_rate = 3
+        else:
+            frame_rate = 0.5
+
+        if frames_validate_count == 3:
             frames_validate_count = 0
             if len(names) != 0:
                 notify_relevant_users(seen_names=set(names))
-                name = []
+                names = []
 
         #  Only after all the names where found check by the last time
 
-        # Separate to draw rectangles around people (need to check how to change the frame from the function)
-        for ((top, right, bottom, left), name) in zip(boxes, names):
-            cv2.rectangle(frame, (left, top), (right, bottom),
-                          (0, 255, 225), 2)
-            y = top - 15 if top - 15 > 15 else top + 15
-            cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX,
-                        .8, (0, 255, 255), 2)
+        if frame_info["user_connection"] or show_on_screen:
+            # Separate to draw rectangles around people (need to check how to change the frame from the function)
+            for ((top, right, bottom, left), name) in zip(boxes, names):
+                cv2.rectangle(frame, (left, top), (right, bottom),
+                              (0, 255, 225), 2)
+                y = top - 15 if top - 15 > 15 else top + 15
+                cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX,
+                            .8, (0, 255, 255), 2)
 
         if show_on_screen:
             cv2.imshow("Facial Recognition is Running", frame)
@@ -163,12 +171,7 @@ def activate_camera(frame_info=None, show_on_screen=False):
         if key == ord("q"):
             break
 
-        time.sleep(1/frame_info["frame_rate"])
-
-        fps.update()
-
-    fps.stop()
-
+        time.sleep(1 / frame_rate)
 
     cv2.destroyAllWindows()
     vs.stop()

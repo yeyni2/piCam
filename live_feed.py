@@ -1,4 +1,5 @@
 import os
+import time
 
 from flask import Flask, Response, request, send_from_directory, stream_with_context
 from firebase_connection import get_firestore_ref, initialize_firebase
@@ -24,6 +25,7 @@ def gen_frames():
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
     except GeneratorExit:
+        print("disconnect")
         frame_info["user_connection"] = False
 
 
@@ -43,6 +45,7 @@ def video_feed():
         return "unauthorised access", 500
 
     frame_info["user_connection"] = True
+    frame_info["user_connection_time"] = time.time()
 
     return Response(stream_with_context(gen_frames()), mimetype='multipart/x-mixed-replace; boundary=frame')
 

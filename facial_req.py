@@ -38,6 +38,8 @@ active_user_connection_fps = 15
 
 def get_cpu_temp() -> float:
     temp_file_path = '/sys/class/thermal/thermal_zone0/temp'
+    if not os.path.exists(temp_file_path):
+        return -1
     with open(temp_file_path, 'r') as file:
         temp = float(file.read()) / 1000
     return temp
@@ -119,6 +121,8 @@ def get_fps(is_user_connected=False, names=None) -> float:
     elif len(names) != 0:
         return 3
     else:
+        if get_cpu_temp() >= 77:
+            return 0.1
         if get_cpu_temp() >= 70:
             return 0.25
         elif get_cpu_temp() >= 65:

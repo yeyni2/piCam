@@ -2,7 +2,7 @@ from firebase_connection import get_firestore_ref, send_message
 from imutils.video import VideoStream
 from typing import Tuple, List
 from imutils.video import FPS
-# from picamera2 import Picamera2
+from picamera2 import Picamera2
 
 import face_recognition
 import imutils
@@ -24,6 +24,7 @@ vs = Picamera2()
 config = vs.create_still_configuration(main={"format": "RGB888"})
 vs.configure(config)
 vs.start()
+vs.set_controls({"FrameRate": 15})
 # vs.capture_file("test.jpg") - test image
 
 time.sleep(2.0)

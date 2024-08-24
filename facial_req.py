@@ -24,7 +24,6 @@ vs = Picamera2()
 config = vs.create_still_configuration(main={"format": "RGB888"})
 vs.configure(config)
 vs.start()
-vs.set_controls({"FrameRate": 15})
 # vs.capture_file("test.jpg") - test image
 
 time.sleep(2.0)
@@ -115,6 +114,7 @@ def activate_camera(frame_info=None, show_on_screen=False):
         # frame = vs.read()  # - For PC usage
         frame = vs.capture_array()
         frame = imutils.resize(frame, width=500)
+
         # Separate to face_rec function
         boxes = face_recognition.face_locations(frame)
         encodings = face_recognition.face_encodings(frame, boxes)
@@ -154,18 +154,21 @@ def activate_camera(frame_info=None, show_on_screen=False):
             y = top - 15 if top - 15 > 15 else top + 15
             cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX,
                         .8, (0, 255, 255), 2)
+
         if show_on_screen:
             cv2.imshow("Facial Recognition is Running", frame)
+
         frame_info["frame"] = frame
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
             break
 
+        time.sleep(1/frame_info["frame_rate"])
+
         fps.update()
 
     fps.stop()
-    print("INFO: elasped time: {:.2f}".format(fps.elapsed()))
-    print("INFO: approx. FPS: {:.2f}".format(fps.fps()))
+
 
     cv2.destroyAllWindows()
     vs.stop()

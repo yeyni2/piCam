@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, Response, request, send_from_directory
+from flask import Flask, Response, request, send_from_directory, stream_with_context
 from firebase_connection import get_firestore_ref, initialize_firebase
 from facial_req import activate_camera
 from firebase_admin import auth
@@ -10,17 +10,20 @@ from flask_cors import CORS
 
 app = Flask(__name__, static_folder="vueapp")
 CORS(app)
-frame_info = {"frame": ""}
+frame_info = {"frame": "", "frame_rate": 5}
 
 
 def gen_frames():
-    while True:
-        frame = frame_info["frame"]
-        if frame is not None:
-            _, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+    try:
+        while True:
+            frame = frame_info["frame"]
+            if frame is not None:
+                _, buffer = cv2.imencode('.jpg', frame)
+                frame = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+    except GeneratorExit:
+        frame_info["frame_rate"] = 5
 
 
 @app.route('/api/video_feed')
@@ -37,7 +40,11 @@ def video_feed():
     cam_ref = get_firestore_ref(collection="cameras", document="piCam")
     if user_id not in cam_ref.get().get("videoAccess"):
         return "unauthorised access", 500
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+    frame_info["frame_rate"] = 30
+
+    return Response(stream_with_context(gen_frames()), mimetype='multipart/x-mixed-replace; boundary=frame')
+
 
 
 @app.route('/api/set_token', methods=['POST'])

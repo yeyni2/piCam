@@ -5,3 +5,4 @@ picamera/
 dlib/
 dataset/
 .venv
+.env

@@ -33,7 +33,14 @@ last_seen_names = {}
 
 # Make an operation only if person wasn't seen for the last 10 minutes or more
 notification_time_threshold = 10 * 60
-active_user_connection_fps = 20
+active_user_connection_fps = 15
+
+
+def get_cpu_temp() -> float:
+    temp_file_path = '/sys/class/thermal/thermal_zone0/temp'
+    with open(temp_file_path, 'r') as file:
+        temp = float(file.read()) / 1000
+    return temp
 
 
 def check_recently_seen(name: str):
@@ -104,6 +111,22 @@ def notify_relevant_users(seen_names: set, cam_name: str = "piCam") -> None:
         send_message(token=user_msg_token, message_title=msg[0], message_body=msg[1])
 
 
+def get_fps(is_user_connected=False, names=None) -> float:
+    if names is None:
+        names = []
+    if is_user_connected:
+        return active_user_connection_fps
+    elif len(names) != 0:
+        return 3
+    else:
+        if get_cpu_temp() >= 70:
+            return 0.25
+        elif get_cpu_temp() >= 65:
+            return 0.33
+        else:
+            return 0.5
+
+
 def activate_camera(frame_info=None, show_on_screen=False):
     if frame_info is None:
         frame_info = {}
@@ -114,16 +137,16 @@ def activate_camera(frame_info=None, show_on_screen=False):
     names = []
 
     while True:
+        frames_validate_count += 1
+
         if ENV == "PI":
             frame = vs.capture_array()
         else:
             frame = vs.read()  # - For PC usage
 
         frame = imutils.resize(frame, width=500)
-        # Separate to face_rec function
         boxes = face_recognition.face_locations(frame)
         encodings = face_recognition.face_encodings(frame, boxes)
-        frames_validate_count += 1
 
         # Separate to find_names
         for encoding in encodings:
@@ -144,12 +167,8 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
             names.append(name)
 
-        if frame_info["user_connection"]:
-            frame_rate = active_user_connection_fps
-        elif len(names) != 0:
-            frame_rate = 3
-        else:
-            frame_rate = 0.5
+        frame_rate = get_fps(frame_info["user_connection"], names)
+        print(frame_rate)
 
         if frames_validate_count == 3:
             frames_validate_count = 0

@@ -6,3 +6,4 @@ dlib/
 dataset/
 .venv
 .env
+env

@@ -27,7 +27,8 @@ def gen_frames():
     except GeneratorExit:
         print("disconnect")
         frame_info["user_connection"] = False
-
+    finally:
+        frame_info["user_connection"] = False
 
 @app.route('/api/video_feed')
 def video_feed():

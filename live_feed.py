@@ -9,6 +9,7 @@ import cv2
 from flask_cors import CORS
 
 app = Flask(__name__, static_folder="vueapp")
+app.config['DEBUG'] = False
 CORS(app)
 frame_info = {"frame": "", "user_connection": False}
 

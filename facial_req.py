@@ -1,7 +1,7 @@
 from firebase_connection import get_firestore_ref, send_message
 from imutils.video import VideoStream
 from typing import Tuple, List
-from picamera2 import Picamera2
+from dotenv import load_dotenv
 
 import face_recognition
 import imutils
@@ -10,20 +10,23 @@ import time
 import cv2
 import os
 
+load_dotenv()
+
+ENV = os.getenv("LOCATION")
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
 encodingsP = os.path.join(dir_path, 'encodings.pickle')
-
-print("INFO: loading known faces")
 data = pickle.loads(open(encodingsP, "rb").read())
-# PC
-# vs = VideoStream(src=0, framerate=10).start()
 
-# Pi:
-vs = Picamera2()
-config = vs.create_still_configuration(main={"format": "RGB888"})
-vs.configure(config)
-vs.start()
-# vs.capture_file("test.jpg") - test image
+if ENV == "PI":
+    from picamera2 import Picamera2
+
+    vs = Picamera2()
+    config = vs.create_still_configuration(main={"format": "RGB888"})
+    vs.configure(config)
+    vs.start()
+else:
+    vs = VideoStream(src=0, framerate=10).start()
 
 time.sleep(2.0)
 last_seen_names = {}
@@ -111,10 +114,12 @@ def activate_camera(frame_info=None, show_on_screen=False):
     names = []
 
     while True:
-        # frame = vs.read()  # - For PC usage
-        frame = vs.capture_array()
-        frame = imutils.resize(frame, width=500)
+        if ENV == "PI":
+            frame = vs.capture_array()
+        else:
+            frame = vs.read()  # - For PC usage
 
+        frame = imutils.resize(frame, width=500)
         # Separate to face_rec function
         boxes = face_recognition.face_locations(frame)
         encodings = face_recognition.face_encodings(frame, boxes)

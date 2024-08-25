@@ -24,11 +24,12 @@ def gen_frames():
                 frame = buffer.tobytes()
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+                time.sleep(1 / frame_info["frame_rate"])
+
     except GeneratorExit:
         print("disconnect")
         frame_info["user_connection"] = False
-    finally:
-        frame_info["user_connection"] = False
+
 
 @app.route('/api/video_feed')
 def video_feed():
@@ -47,9 +48,12 @@ def video_feed():
 
     frame_info["user_connection"] = True
     frame_info["user_connection_time"] = time.time()
+    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-    return Response(stream_with_context(gen_frames()), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+@app.route('/api/set_connection_time')
+def set_connection_time():
+    frame_info["user_connection_time"] = time.time()
 
 
 @app.route('/api/set_token', methods=['POST'])

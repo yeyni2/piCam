@@ -121,11 +121,16 @@ def get_fps(is_user_connected=False, names=None) -> float:
     elif len(names) != 0:
         return 3
     else:
-        if get_cpu_temp() >= 77:
-            return 0.1
-        if get_cpu_temp() >= 70:
+        temp = get_cpu_temp()
+        if temp >= 73:
+            return 0.15
+        elif temp >= 70:
+            return 0.15
+        elif temp >= 65:
+            return 0.2
+        elif temp >= 60:
             return 0.25
-        elif get_cpu_temp() >= 65:
+        elif temp >= 55:
             return 0.33
         else:
             return 0.5
@@ -136,7 +141,6 @@ def activate_camera(frame_info=None, show_on_screen=False):
         frame_info = {}
 
     frames_validate_count = 0
-    frame_rate = 0.5
     currentname = "unknown"
     names = []
 
@@ -172,7 +176,7 @@ def activate_camera(frame_info=None, show_on_screen=False):
             names.append(name)
 
         frame_rate = get_fps(frame_info["user_connection"], names)
-        print(frame_rate)
+        frame_info["frame_rate"] = frame_rate
 
         if frames_validate_count == 3:
             frames_validate_count = 0

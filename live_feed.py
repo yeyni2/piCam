@@ -15,7 +15,7 @@ from flask_socketio import SocketIO
 
 app = Flask(__name__, static_folder="vueapp")
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", logs=True)
 frame_info = {"frame": "", "user_connections": set()}
 frame_info_lock = threading.Lock()
 
@@ -124,7 +124,7 @@ def main():
     t = threading.Thread(target=activate_camera, args=(frame_info,))
     t.daemon = True
     t.start()
-    socketio.run(app, host='0.0.0.0', port=3000)
+    socketio.run(app, host='0.0.0.0', port=3000, allow_unsafe_werkzeug=True)
     # app.run(host='0.0.0.0', port=3000)
 
 

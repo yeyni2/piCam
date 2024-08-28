@@ -1,18 +1,23 @@
+import base64
 import os
 import time
 
-from flask import Flask, Response, request, send_from_directory, stream_with_context
+from flask import Flask, Response, request, send_from_directory
 from firebase_connection import get_firestore_ref, initialize_firebase
 from facial_req import activate_camera
 from firebase_admin import auth
+from flask_cors import CORS
 import threading
 import cv2
-from flask_cors import CORS
+
+# SOKET
+from flask_socketio import SocketIO
 
 app = Flask(__name__, static_folder="vueapp")
-app.config['DEBUG'] = False
 CORS(app)
-frame_info = {"frame": "", "user_connection": False}
+socketio = SocketIO(app, cors_allowed_origins="*")
+frame_info = {"frame": "", "user_connections": set()}
+frame_info_lock = threading.Lock()
 
 
 def gen_frames():
@@ -25,7 +30,6 @@ def gen_frames():
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
                 time.sleep(1 / frame_info["frame_rate"])
-
     except GeneratorExit:
         print("disconnect")
         frame_info["user_connection"] = False
@@ -49,6 +53,36 @@ def video_feed():
     frame_info["user_connection"] = True
     frame_info["user_connection_time"] = time.time()
     return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+# Socket video:
+def gen_frames_sock():
+    while True:
+        with frame_info_lock:
+            if not frame_info["user_connections"]:
+                break
+
+        frame = frame_info["frame"]
+        if frame is not None:
+            _, buffer = cv2.imencode('.jpg', frame)
+            frame = base64.b64encode(buffer).decode('utf-8')
+            socketio.emit('new_frame', {'frame': frame})
+            socketio.sleep(1/frame_info["frame_rate"])
+
+
+@socketio.on('video_feed')
+def handle_request_stream():
+    print("user connected")
+    with frame_info_lock:
+        frame_info["user_connections"].add(request.sid)
+    socketio.start_background_task(gen_frames_sock)
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    with frame_info_lock:
+        frame_info["user_connections"].discard(request.sid)
+    print(f"user disconnected")
 
 
 @app.route('/api/set_connection_time')
@@ -90,7 +124,8 @@ def main():
     t = threading.Thread(target=activate_camera, args=(frame_info,))
     t.daemon = True
     t.start()
-    app.run(host='0.0.0.0', port=3000)
+    socketio.run(app, host='0.0.0.0', port=3000)
+    # app.run(host='0.0.0.0', port=3000)
 
 
 if __name__ == '__main__':

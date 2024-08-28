@@ -141,6 +141,7 @@ def activate_camera(frame_info=None, show_on_screen=False):
         frame_info = {}
 
     frames_validate_count = 0
+    user_connected = False
     currentname = "unknown"
     names = []
 
@@ -175,8 +176,10 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
             names.append(name)
 
-        frame_rate = get_fps(frame_info["user_connection"], names)
-        frame_info["frame_rate"] = frame_rate
+        if len(frame_info["user_connections"]) > 0:
+            user_connected = True
+
+        frame_info["frame_rate"] = get_fps(user_connected, names)
 
         if frames_validate_count == 3:
             frames_validate_count = 0
@@ -186,7 +189,7 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
         #  Only after all the names where found check by the last time
 
-        if frame_info["user_connection"] or show_on_screen:
+        if user_connected or show_on_screen:
             # Separate to draw rectangles around people (need to check how to change the frame from the function)
             for ((top, right, bottom, left), name) in zip(boxes, names):
                 cv2.rectangle(frame, (left, top), (right, bottom),
@@ -203,7 +206,7 @@ def activate_camera(frame_info=None, show_on_screen=False):
         if key == ord("q"):
             break
 
-        time.sleep(1 / frame_rate)
+        time.sleep(1 / frame_info["frame_rate"])
 
     cv2.destroyAllWindows()
     vs.stop()

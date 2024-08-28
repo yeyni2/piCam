@@ -1,6 +1,7 @@
 import base64
 import os
 import time
+import logging
 
 from flask import Flask, Response, request, send_from_directory
 from firebase_connection import get_firestore_ref, initialize_firebase
@@ -16,6 +17,8 @@ from flask_socketio import SocketIO
 app = Flask(__name__, static_folder="vueapp")
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
+log = logging.getLogger('werkzeug')
+
 frame_info = {"frame": "", "user_connections": set()}
 frame_info_lock = threading.Lock()
 

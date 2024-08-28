@@ -178,6 +178,8 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
         if len(frame_info["user_connections"]) > 0:
             user_connected = True
+        else:
+            user_connected = False
 
         frame_info["frame_rate"] = get_fps(user_connected, names)
 

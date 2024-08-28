@@ -5,6 +5,7 @@ import logging
 
 from flask import Flask, Response, request, send_from_directory
 from firebase_connection import get_firestore_ref, initialize_firebase
+from flask_socketio import SocketIO
 from facial_req import activate_camera
 from firebase_admin import auth
 from flask_cors import CORS
@@ -12,12 +13,13 @@ import threading
 import cv2
 
 # SOKET
-from flask_socketio import SocketIO
 
 app = Flask(__name__, static_folder="vueapp")
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
+
 log = logging.getLogger('werkzeug')
+log.disabled = True
 
 frame_info = {"frame": "", "user_connections": set()}
 frame_info_lock = threading.Lock()
@@ -57,9 +59,7 @@ frame_info_lock = threading.Lock()
 #     frame_info["user_connection_time"] = time.time()
 #     return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-
-# Socket video:
-def gen_frames_sock():
+def gen_frames():
     while True:
         with frame_info_lock:
             if not frame_info["user_connections"]:
@@ -78,7 +78,7 @@ def handle_request_stream():
     print("user connected")
     with frame_info_lock:
         frame_info["user_connections"].add(request.sid)
-    socketio.start_background_task(gen_frames_sock)
+    socketio.start_background_task(gen_frames)
 
 
 @socketio.on('disconnect')

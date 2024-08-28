@@ -20,39 +20,39 @@ frame_info = {"frame": "", "user_connections": set()}
 frame_info_lock = threading.Lock()
 
 
-def gen_frames():
-    try:
-        while True:
-            frame = frame_info["frame"]
-            if frame is not None:
-                _, buffer = cv2.imencode('.jpg', frame)
-                frame = buffer.tobytes()
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-                time.sleep(1 / frame_info["frame_rate"])
-    except GeneratorExit:
-        print("disconnect")
-        frame_info["user_connection"] = False
-
-
-@app.route('/api/video_feed')
-def video_feed():
-    user_id_token = request.args.get('user_id_token')
-    try:
-        decoded_token = auth.verify_id_token(user_id_token)
-        user_id = decoded_token['uid']
-    except auth.InvalidIdTokenError:
-        return 'Invalid ID token', 401
-    except Exception as e:
-        return "something went wrong", 500
-
-    cam_ref = get_firestore_ref(collection="cameras", document="piCam")
-    if user_id not in cam_ref.get().get("videoAccess"):
-        return "unauthorised access", 500
-
-    frame_info["user_connection"] = True
-    frame_info["user_connection_time"] = time.time()
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+# def gen_frames():
+#     try:
+#         while True:
+#             frame = frame_info["frame"]
+#             if frame is not None:
+#                 _, buffer = cv2.imencode('.jpg', frame)
+#                 frame = buffer.tobytes()
+#                 yield (b'--frame\r\n'
+#                        b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+#                 time.sleep(1 / frame_info["frame_rate"])
+#     except GeneratorExit:
+#         print("disconnect")
+#         frame_info["user_connection"] = False
+#
+#
+# @app.route('/api/video_feed')
+# def video_feed():
+#     user_id_token = request.args.get('user_id_token')
+#     try:
+#         decoded_token = auth.verify_id_token(user_id_token)
+#         user_id = decoded_token['uid']
+#     except auth.InvalidIdTokenError:
+#         return 'Invalid ID token', 401
+#     except Exception as e:
+#         return "something went wrong", 500
+#
+#     cam_ref = get_firestore_ref(collection="cameras", document="piCam")
+#     if user_id not in cam_ref.get().get("videoAccess"):
+#         return "unauthorised access", 500
+#
+#     frame_info["user_connection"] = True
+#     frame_info["user_connection_time"] = time.time()
+#     return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 # Socket video:

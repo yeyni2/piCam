@@ -15,7 +15,7 @@ from flask_socketio import SocketIO
 
 app = Flask(__name__, static_folder="vueapp")
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*", logs=True)
+socketio = SocketIO(app, cors_allowed_origins="*")
 frame_info = {"frame": "", "user_connections": set()}
 frame_info_lock = threading.Lock()
 

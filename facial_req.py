@@ -24,7 +24,7 @@ if ENV == "PI":
     from picamera2 import Picamera2
 
     vs = Picamera2()
-    vs.awb_mode = 'off'
+    # vs.awb_mode = 'off'
     config = vs.create_still_configuration(main={"format": "RGB888"})
     vs.configure(config)
     vs.start()

@@ -4,3 +4,6 @@ test.py
 picamera/
 dlib/
 dataset/
+env
+.env
+venv

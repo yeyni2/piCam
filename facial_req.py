@@ -19,7 +19,6 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 encodingsP = os.path.join(dir_path, 'encodings.pickle')
 data = pickle.loads(open(encodingsP, "rb").read())
 known_names = set(data['names'])
-print(data['names'])
 
 if ENV == "PI":
     from picamera2 import Picamera2

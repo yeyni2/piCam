@@ -4,3 +4,8 @@ test.py
 picamera/
 dlib/
 dataset/
+.venv
+.env
+*.pyc
+__pycache__/
+

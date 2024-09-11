@@ -3,7 +3,9 @@ picam-262bc-firebase-adminsdk-u5owm-02fbae3cf2.json
 test.py
 picamera/
 dlib/
-dataset/
 env
 .env
 venv
+.venv
+*.pyc
+__pycache__/

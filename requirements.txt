@@ -1,8 +1,12 @@
 cmake
 imutils
 opencv-python
-face_recognition
 setuptools
 flask
 firebase_admin
 flask_cors
+numpy
+picamera2
+python-dotenv
+flask-socketio
+eventlet

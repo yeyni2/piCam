@@ -28,15 +28,16 @@ if ENV == "PI":
     config = vs.create_still_configuration(main={"format": "RGB888"})
     vs.configure(config)
     vs.start()
+    active_user_connection_fps = 15
 else:
     vs = VideoStream(src=0, framerate=10).start()
+    active_user_connection_fps = 60
 
 time.sleep(2.0)
 last_seen_names = {}
 
 # Make an operation only if person wasn't seen for the last 10 minutes or more
 notification_time_threshold = 10 * 60
-active_user_connection_fps = 15
 
 
 def get_cpu_temp() -> float:
@@ -104,7 +105,8 @@ def notify_relevant_users(seen_names: list, cam_name: str = "piCam", expected_fa
     if not cam_details.exists:
         return
 
-    should_send, msg = get_relevant_msg(get_relevant_names(seen_names, expected_faces_count))
+    relevant_names = get_relevant_names(seen_names, expected_faces_count)
+    should_send, msg = get_relevant_msg(relevant_names)
 
     if not should_send:
         return
@@ -115,9 +117,12 @@ def notify_relevant_users(seen_names: list, cam_name: str = "piCam", expected_fa
         user_info = get_firestore_ref(collection="users", document=user_id).get()
         try:
             user_msg_token = user_info.get("messageToken")
+            user_name = user_info.get("name")
         except:
             continue
-        send_message(token=user_msg_token, message_title=msg[0], message_body=msg[1])
+
+        if not user_name or user_name not in relevant_names:
+            send_message(token=user_msg_token, message_title=msg[0], message_body=msg[1])
 
 
 def filter_names(names: list, expected_faces_count: int = 1) -> set:

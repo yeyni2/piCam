@@ -9,6 +9,7 @@ from flask import Flask, request, send_from_directory, jsonify
 from flask_socketio import SocketIO, disconnect
 from firebase_admin import auth, firestore
 from facial_req import activate_camera
+from cams_known_faces import add_new_image, remove_image, update_name
 from typing import List, Tuple, Dict, Any
 from flask_cors import CORS
 from functools import wraps
@@ -156,28 +157,6 @@ def set_user_token():
     return "", 200
 
 
-@app.route('/api/edit_account_details', methods=['POST'])
-@verify_firebase_user_id_token
-def edit_account_details():
-    # TODO: should he be able to change his name? if so it should update in all the cams hes in.x
-    name = request.form.get("name")
-    images = request.files.getlist('images')
-    user_id = request.user.get('uid')
-
-    user_ref = get_firestore_ref(collection='users', document=user_id)
-    if not user_ref.get().exists:
-        return "unauthorised access", 500
-
-    new_images = upload_images(images, user_id)
-
-    user_ref.set({
-        'images': firestore.ArrayUnion([image_path[0] for image_path in new_images]),
-        "name": name
-    }, merge=True)
-
-    return jsonify({"uploadedImages": new_images})
-
-
 @app.route("/api/get_account_info")
 @verify_firebase_user_id_token
 def get_account_info():
@@ -208,6 +187,42 @@ def get_account_info():
     return jsonify(account_details), 200
 
 
+@app.route('/api/edit_account_details', methods=['POST'])
+@verify_firebase_user_id_token
+def edit_account_details():
+    # TODO: should he be able to change his name? if so it should update in all the cams hes in.x
+    name = request.form.get("name")
+    images = request.files.getlist('images')
+    user_id = request.user.get('uid')
+
+    user_ref = get_firestore_ref(collection='users', document=user_id)
+    if not user_ref.get().exists:
+        return "unauthorised access", 500
+
+    existing_name = user_ref.get().get("name")
+    new_images = upload_images(images, user_id)
+    image_paths = [image_path["imagePath"] for image_path in new_images]
+    set_data = {}
+
+    if len(image_paths) > 0:
+        set_data["images"] = firestore.ArrayUnion(image_paths)
+
+    if existing_name != name and name != "":
+        set_data["name"] = name
+
+    if len(set_data.keys()) == 0:
+        return "", 200
+
+    user_ref.set(set_data, merge=True)
+
+    for cam in user_ref.get().get("cams"):
+        add_new_image(user_id, image_paths)
+        if existing_name != name:
+            update_name(user_id)
+
+    return jsonify({"uploadedImages": new_images})
+
+
 @app.route("/api/delete_image", methods=["DELETE"])
 @verify_firebase_user_id_token
 def delete_image_from_account():
@@ -227,10 +242,18 @@ def delete_image_from_account():
         })
 
         get_storage_blob(image_path).delete()
+
+        for cam in user_ref.get().get("cams"):
+            # TODO: This will need to send a request to the cam to handles its own delete
+            remove_image(user_id, [image_path])
+
     except Exception as e:
+        print(e)
         return str(e), 500
 
     return "", 200
+
+
 @app.route("/api/add_new_user", methods=['POST'])
 @verify_firebase_user_id_token
 def add_new_user():

@@ -1,4 +1,6 @@
-from firebase_connection import get_firestore_ref, send_message
+import math
+
+from firebase_connection import get_firestore_ref, send_message, initialize_firebase
 from imutils.video import VideoStream
 from typing import Tuple, List
 from dotenv import load_dotenv
@@ -31,7 +33,7 @@ if ENV == "PI":
     config = vs.create_still_configuration(main={"format": "RGB888"})
     vs.configure(config)
     vs.start()
-    active_user_connection_fps = 15
+    active_user_connection_fps = 30
 else:
     vs = VideoStream(src=0, framerate=10).start()
     active_user_connection_fps = 60
@@ -121,7 +123,7 @@ def notify_relevant_users(seen_users: list, cam_name: str = "piCam", expected_fa
         return
 
     relevant_users = get_relevant_users(seen_users, expected_faces_count)
-    relevant_names = [data["users"][user_id] for user_id in relevant_users if user_id != "unknown"]
+    relevant_names = [data["users"][user_id]["name"] for user_id in relevant_users if user_id != "unknown"]
     should_send, msg = get_relevant_msg(relevant_users, relevant_names)
 
     if not should_send:
@@ -137,8 +139,9 @@ def notify_relevant_users(seen_users: list, cam_name: str = "piCam", expected_fa
         except:
             continue
 
-        if not user_name or user_name not in relevant_names:
-            send_message(token=user_msg_token, message_title=msg[0], message_body=msg[1])
+        if user_id not in relevant_users:
+            pass
+            # send_message(token=user_msg_token, message_title=msg[0], message_body=msg[1])
 
 
 def filter_names(users: list, expected_faces_count: int = 1) -> set:
@@ -146,7 +149,7 @@ def filter_names(users: list, expected_faces_count: int = 1) -> set:
     filtered_names = []
     unknown_number = 1
 
-    if len(users) != expected_faces_count * FRAME_NOTIFICATION_THRESHOLD:
+    if len(users) != expected_faces_count * (FRAME_NOTIFICATION_THRESHOLD - 1):
         return set()
 
     for uid in users:
@@ -170,7 +173,12 @@ def filter_names(users: list, expected_faces_count: int = 1) -> set:
 
                 users_count[unknown_name] += 1
 
-    sorted_users = sorted(users_count.keys(), key=lambda user: users_count[user])
+    filtered_users_count = {}
+    for uid, count in users_count.items():
+        if count > 1:
+            filtered_users_count[uid] = count
+
+    sorted_users = sorted(filtered_users_count.keys(), key=lambda user: filtered_users_count[user])
 
     for user_index in range(len(sorted_users)):
         if sorted_users[user_index] in known_users:
@@ -180,8 +188,8 @@ def filter_names(users: list, expected_faces_count: int = 1) -> set:
 
         if len(filtered_names) == expected_faces_count:
             if user_index + 1 < len(sorted_users):
-                current_name_count = users_count[sorted_users[user_index]]
-                next_name_count = users_count[sorted_users[user_index + 1]]
+                current_name_count = filtered_users_count[sorted_users[user_index]]
+                next_name_count = filtered_users_count[sorted_users[user_index + 1]]
                 if current_name_count == next_name_count:
                     return set()
             break
@@ -192,25 +200,22 @@ def filter_names(users: list, expected_faces_count: int = 1) -> set:
     return set(filtered_names)
 
 
+def convert_temp_to_fps(temp: float) -> float:
+    fps = 19.98277 / (1 + math.exp(0.124135 * temp - 7.37577))
+    fps = max(0.15, fps)
+    return fps
+
+
 def get_fps(is_user_connected: bool = False, expect_face: bool = False) -> float:
+    temp = get_cpu_temp()
     if is_user_connected:
+        if temp >= 75:
+            return 15
         return active_user_connection_fps
     elif expect_face:
-        return FRAME_NOTIFICATION_THRESHOLD
+        return FRAME_NOTIFICATION_THRESHOLD * 3
     else:
-        temp = get_cpu_temp()
-        if temp >= 73:
-            return 0.15
-        elif temp >= 70:
-            return 0.15
-        elif temp >= 65:
-            return 0.2
-        elif temp >= 60:
-            return 0.25
-        elif temp >= 55:
-            return 0.33
-        else:
-            return 0.5
+        return convert_temp_to_fps(temp)
 
 
 def match_existing_faces(encodings: list = None, users: list = None) -> list:
@@ -268,7 +273,6 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
     while True:
         update_data()
-        frames_validate_count += 1
 
         if ENV == "PI":
             frame = vs.capture_array()
@@ -282,27 +286,28 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
         users = match_existing_faces(encodings, users)
 
-        if len(frame_info["user_connections"]) > 0:
+        if show_on_screen or "user_connections" in frame_info and len(frame_info["user_connections"]) > 0:
             user_connected = True
         else:
             user_connected = False
 
-        if len(users) > 0:
+        if len(users) > 0 or expect_face:
             expect_face = True
+            frames_validate_count += 1
 
         frame_info["frame_rate"] = get_fps(user_connected, expect_face)
 
+        if user_connected or show_on_screen:
+            frame = draw_box_around_faces(boxes, users, frame)
+
         if frames_validate_count == FRAME_NOTIFICATION_THRESHOLD:
-            if len(users) == FRAME_NOTIFICATION_THRESHOLD * amount_of_faces:
-                notify_relevant_users(seen_users=users,
-                                      expected_faces_count=amount_of_faces)
+            if len(users) > 0:
+                notify_relevant_users(seen_users=users, expected_faces_count=amount_of_faces)
+
             expect_face = False
             frames_validate_count = 0
             users = []
             amount_of_faces = 0
-
-        if user_connected or show_on_screen:
-            frame = draw_box_around_faces(boxes, users, frame)
 
         if show_on_screen:
             cv2.imshow("Facial Recognition is Running", frame)
@@ -320,4 +325,6 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
 
 if __name__ == '__main__':
+    initialize_firebase()
     activate_camera(show_on_screen=True)
+

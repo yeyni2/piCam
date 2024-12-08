@@ -1,5 +1,3 @@
-import tempfile
-
 import imutils
 import numpy as np
 import face_recognition
@@ -13,7 +11,6 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 encodingsP = os.path.join(dir_path, 'encodings.pickle')
 with open(encodingsP, "rb") as file:
     data = pickle.loads(file.read())
-print(data)
 
 
 def update_pickle():
@@ -27,7 +24,7 @@ def update_known():
     data["known_users"] = []
     for uid, user_data in data["users"].items():
         data["known_encodings"].extend(user_data.get('encodings').values())
-        data["known_users"].extend([uid * len(user_data.get('encodings').values())])
+        data["known_users"].extend([uid] * len(user_data.get('encodings').values()))
 
 
 def check_and_create_user(uid: str):
@@ -40,6 +37,21 @@ def check_and_create_user(uid: str):
         if not name:
             raise Exception("User must have a name")
         data["users"][uid] = {"name": name, "encodings": {}}
+
+
+def get_face_encodings(frame):
+    count = 0
+    while count < 5:
+        try:
+            boxes = face_recognition.face_locations(frame)
+            if len(boxes) == 0 or len(boxes) > 1:
+                return []
+
+            return face_recognition.face_encodings(frame, boxes)
+        except Exception as e:
+            print(f"Somthing is wrong...")
+            print(str(e))
+            count += 1
 
 
 def get_image_encodings(blob_path: str) -> list:
@@ -57,22 +69,20 @@ def get_image_encodings(blob_path: str) -> list:
         blob.download_to_filename(local_filename)
 
         frame = cv2.imread(local_filename)
-        # frame = imutils.resize(frame, width=500)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        boxes = face_recognition.face_locations(frame)
-
-        if len(boxes) == 0 or len(boxes) > 1:
-            os.remove(local_filename)
+        frame = imutils.resize(frame, width=500)
+        face_encodings = get_face_encodings(frame)
+        if not face_encodings or face_encodings == []:
             return []
 
-        face_encodings = face_recognition.face_encodings(frame, boxes)
-
-        os.remove(local_filename)
         return face_encodings[0]
 
     except Exception as e:
         print(f"Error retrieving face encodings: {e}")
         return []
+    finally:
+        if os.path.exists(local_filename):
+            os.remove(local_filename)
 
 
 def add_new_image(uid: str, firebase_image_paths: list):
@@ -85,9 +95,7 @@ def add_new_image(uid: str, firebase_image_paths: list):
     for image_path in firebase_image_paths:
         if image_path in data["users"][uid]["encodings"]:
             continue
-
         encoding = get_image_encodings(image_path)
-        print(encoding)
         if len(encoding) == 0:
             continue
 
@@ -98,7 +106,7 @@ def add_new_image(uid: str, firebase_image_paths: list):
 
 
 def remove_image(uid: str, firebase_image_path: list):
-    if uid not in data:
+    if uid not in data["users"]:
         return
 
     for image_path in firebase_image_path:
@@ -121,7 +129,3 @@ def update_name(uid: str):
 
     data["users"][uid]["name"] = name
     update_pickle()
-
-# update_pickle()
-# with open(encodingsP, "wb") as file:
-#     file.write(pickle.dumps({}))

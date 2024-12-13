@@ -28,7 +28,7 @@ if ENV == "PI":
     config = vs.create_still_configuration(main={"format": "RGB888"})
     vs.configure(config)
     vs.start()
-    active_user_connection_fps = 15
+    active_user_connection_fps = 20
 else:
     vs = VideoStream(src=0, framerate=10).start()
     active_user_connection_fps = 60
@@ -184,17 +184,17 @@ def get_fps(is_user_connected: bool = False, expect_face: bool = False) -> float
     else:
         temp = get_cpu_temp()
         if temp >= 73:
-            return 0.15
+            return 3
         elif temp >= 70:
-            return 0.15
+            return 7
         elif temp >= 65:
-            return 0.2
+            return 9
         elif temp >= 60:
-            return 0.25
+            return 11
         elif temp >= 55:
-            return 0.33
+            return 13
         else:
-            return 0.5
+            return 15
 
 
 def match_existing_faces(encodings: list = None, names: list = None) -> list:

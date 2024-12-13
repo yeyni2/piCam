@@ -1,16 +1,17 @@
 import os
 import logging
 import base64
+import time
 import uuid
-import datetime
 
 from firebase_connection import get_firestore_ref, initialize_firebase, get_storage_blob
+from cams_known_faces import add_new_image, remove_image, update_name
 from flask import Flask, request, send_from_directory, jsonify
 from flask_socketio import SocketIO, disconnect
 from firebase_admin import auth, firestore
-from facial_req import activate_camera
-from cams_known_faces import add_new_image, remove_image, update_name
 from typing import List, Tuple, Dict, Any
+from facial_req import activate_camera
+from datetime import datetime, timezone
 from flask_cors import CORS
 from functools import wraps
 import threading
@@ -102,6 +103,68 @@ def generate_signed_url(image_paths: list) -> list:
     return signed_urls
 
 
+def get_cams_admin(cam: str) -> str:
+    pass
+
+
+def is_new_id_valid(it_to_check: str, collection: str) -> bool:
+    if get_firestore_ref(collection=collection, document=it_to_check).get().exists:
+        return False
+    return True
+
+
+def gen_random_id(collection: str) -> str:
+    while True:
+        request_id = str(uuid.uuid4())
+        if is_new_id_valid(request_id, collection):
+            return request_id
+
+
+def build_join_cam_request(uid: str, cams_name: str, options: dict):
+    """
+    :param uid: user id
+    :param cams_name: cams name/id
+    :param options: dict or request relevant options
+    :return: A dict of data about the request
+    """
+    # TODO: move this to utils script
+    request_id = gen_random_id(collection="requests")
+
+    return request_id, {
+        "sender_id": uid,
+        "cam": cams_name,
+        "options": options,
+        "status": "pending",
+        "timestamp": datetime.now(timezone.utc)
+    }
+
+
+def update_reqeust_related_users(request_id: str, request_data):
+    cams_admin = get_cams_admin(request_data.get("cam"))
+    sender_ref = get_firestore_ref(collection="users", document=request_data.get("sender_id"))
+    admins_ref = get_firestore_ref(collection="users", document=cams_admin)
+
+    # The uid that made the request will have a list of outgoing request and the admin will also have pending request
+    # list so he can to make requests to other cams.
+
+
+def create_request(uid: str, cams_name: str, options: dict):
+    """
+    Creates a request and saves it to the relevant locations in db
+    :param uid: user id
+    :param cams_name: cams name/id
+    :param options: dict of relevant options for the request
+    """
+    # TODO: move this to utils script
+
+    request_id, request_data = build_join_cam_request(uid=uid, cams_name=cams_name, options=options)
+
+    req_ref = get_firestore_ref(collection="requests", document=request_id)
+    req_ref.set(request_data)
+
+    update_reqeust_related_users(request_id=request_id, request_data=request_data)
+
+
 def gen_frames():
     while True:
         with frame_info_lock:
@@ -190,7 +253,6 @@ def get_account_info():
 @app.route('/api/edit_account_details', methods=['POST'])
 @verify_firebase_user_id_token
 def edit_account_details():
-    # TODO: should he be able to change his name? if so it should update in all the cams hes in.x
     name = request.form.get("name")
     images = request.files.getlist('images')
     user_id = request.user.get('uid')
@@ -269,20 +331,67 @@ def add_new_user():
     return "", 200
 
 
+@app.route("/api/join_cam_request", methods=['POST'])
+@verify_firebase_user_id_token
+def join_cam_request():
+    # Firstly get the cams name, and the requests options in a dict like:
+    # {"request_live_feed": True, "get_notifications": True, "allow_to_add_images": False}
+    requests_data = request.get_json()
+    request_options = requests_data["options"]
+    cams_name = requests_data.get("name")
+    user_id = request.user["uid"]
+
+    user_ref = get_firestore_ref(collection='users', document=user_id)
+    cams_ref = get_firestore_ref(collection="cams", document=cams_name)
+
+    if not user_ref.get().exists:
+        return "unauthorised access", 500
+
+    if not cams_ref.get().exists:
+        return "cam not found", 500
+
+    # After all the data is saved and the user data is checked and validated
+    # create a request in a requests collections with the user that made the request the cam and the requests options
+    # Add a request creation time and status.
+
+    # Create a requests list for and add this request (generate and id and make sure it doesnt exist)
+    # The uid that made the request will have a list of outgoing request and the admin will also have pending request
+    # list so he can to make requests to other cams.
+
+    create_request(uid=user_id, cams_name=cams_name, options=request_options)
+
+    # After all that the request will exist and the front will just show them and logic will be applied in following
+    # functions
+
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_vue_app(path):
+    """
+    :param path: url path to get the frontend
+    :return: files to run the website
+    """
     if path and os.path.exists(os.path.join(app.static_folder, path)):
         return send_from_directory(app.static_folder, path)
     else:
         return send_from_directory(app.static_folder, 'index.html')
 
 
+def start_face_recognition():
+    thread = None
+
+    while True:
+        if thread is None or not thread.is_alive():
+            print("restarting face rec")
+            thread = threading.Thread(target=activate_camera, args=(frame_info,), daemon=True)
+            thread.start()
+        time.sleep(5)
+
+
 def main():
     initialize_firebase()
-    t = threading.Thread(target=activate_camera, args=(frame_info,))
-    t.daemon = True
-    t.start()
+    time.sleep(1)
+    threading.Thread(target=start_face_recognition, daemon=True).start()
     socketio.run(app, host='0.0.0.0', port=3000, allow_unsafe_werkzeug=True)
 
 

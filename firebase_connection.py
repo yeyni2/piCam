@@ -15,6 +15,9 @@ def initialize_firebase():
 
 
 def get_firestore_ref(collection: str = None, document: str = None):
+    if not firebase_admin._apps:
+        initialize_firebase()
+
     if collection is None:
         firestore.client()
     if document is None:
@@ -23,10 +26,16 @@ def get_firestore_ref(collection: str = None, document: str = None):
 
 
 def get_storage_blob(name: str):
+    if not firebase_admin._apps:
+        initialize_firebase()
+
     return storage.bucket().blob(name)
 
 
 def send_message(token, message_title: str = "", message_body: str = ""):
+    if not firebase_admin._apps:
+        initialize_firebase()
+
     message = messaging.Message(
         notification=messaging.Notification(
             title=message_title,

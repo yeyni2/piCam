@@ -104,7 +104,7 @@ def generate_signed_url(image_paths: list) -> list:
 
 
 def get_cams_admin(cam: str) -> str:
-    pass
+    return get_firestore_ref(collection="cams", document=cam).get().get("adminUser")
 
 
 def is_new_id_valid(it_to_check: str, collection: str) -> bool:
@@ -141,11 +141,19 @@ def build_join_cam_request(uid: str, cams_name: str, options: dict):
 
 def update_reqeust_related_users(request_id: str, request_data):
     cams_admin = get_cams_admin(request_data.get("cam"))
+    if cams_admin is None:
+        raise Exception("Cam is not valid")
+
     sender_ref = get_firestore_ref(collection="users", document=request_data.get("sender_id"))
     admins_ref = get_firestore_ref(collection="users", document=cams_admin)
 
-    # The uid that made the request will have a list of outgoing request and the admin will also have pending request
-    # list so he can to make requests to other cams.
+    sender_ref.update({
+        "myRequests": firestore.ArrayUnion([request_id])
+    })
+
+    admins_ref.update({
+        "adminPendingRequests": firestore.ArrayUnion([request_id])
+    })
 
 
 def create_request(uid: str, cams_name: str, options: dict):
@@ -350,18 +358,7 @@ def join_cam_request():
     if not cams_ref.get().exists:
         return "cam not found", 500
 
-    # After all the data is saved and the user data is checked and validated
-    # create a request in a requests collections with the user that made the request the cam and the requests options
-    # Add a request creation time and status.
-
-    # Create a requests list for and add this request (generate and id and make sure it doesnt exist)
-    # The uid that made the request will have a list of outgoing request and the admin will also have pending request
-    # list so he can to make requests to other cams.
-
     create_request(uid=user_id, cams_name=cams_name, options=request_options)
-
-    # After all that the request will exist and the front will just show them and logic will be applied in following
-    # functions
 
 
 @app.route('/', defaults={'path': ''})

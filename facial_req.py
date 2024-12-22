@@ -31,13 +31,13 @@ if ENV == "PI":
     from picamera2 import Picamera2
 
     vs = Picamera2()
-    config = vs.create_still_configuration(main={"format": "RGB888"})
+    config = vs.create_video_configuration(main={"format": "RGB888"}, controls={"FrameRate": 27.0})
     vs.configure(config)
     vs.start()
-    active_user_connection_fps = 30
+    active_user_connection_fps = 25
 else:
-    vs = VideoStream(src=0, framerate=10).start()
-    active_user_connection_fps = 60
+    vs = VideoStream(src=0, framerate=30).start()
+    active_user_connection_fps = 30
 
 time.sleep(2.0)
 last_seen_users = {}

@@ -10,3 +10,4 @@ picamera2
 python-dotenv
 flask-socketio
 eventlet
+mediapipe

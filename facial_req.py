@@ -6,6 +6,7 @@ from typing import Tuple, List
 from dotenv import load_dotenv
 
 import face_recognition
+import mediapipe as mp
 import imutils
 import pickle
 import time
@@ -43,6 +44,10 @@ last_seen_users = {}
 
 # Make an operation only if person wasn't seen for the last 10 minutes or more
 notification_time_threshold = 10 * 60
+
+# set face location recognition
+mp_face_detection = mp.solutions.face_detection
+face_detection = mp_face_detection.FaceDetection()
 
 
 def update_data():
@@ -118,15 +123,15 @@ def get_relevant_msg(relevant_users: list, relevant_names: list) -> Tuple[bool, 
 
 
 def notify_relevant_users(seen_users: list, cam_name: str = "piCam", expected_faces_count: int = 1) -> None:
-    cam_details = get_firestore_ref(collection="cameras", document=cam_name).get()
-    if not cam_details.exists:
-        return
-
     relevant_users = get_relevant_users(seen_users, expected_faces_count)
     relevant_names = [data["users"][user_id]["name"] for user_id in relevant_users if user_id != "unknown"]
     should_send, msg = get_relevant_msg(relevant_users, relevant_names)
 
     if not should_send:
+        return
+
+    cam_details = get_firestore_ref(collection="cameras", document=cam_name).get()
+    if not cam_details.exists:
         return
 
     last_seen_users["last_notification_time"] = time.time()
@@ -262,6 +267,52 @@ def draw_box_around_faces(boxes: list, users: list, frame):
     return frame
 
 
+def convert_face_detection_to_boxes(face_detection_res, frame):
+    """
+
+    :param face_detection_res: result of face detection of mediapipe
+    :param frame: the current frame image
+    :return: the faces locations is a formate face_recognition.face_encodings can understand
+    """
+    boxes = []
+
+    if face_detection_res.detections:
+        for detection in face_detection_res.detections:
+            bboxC = detection.location_data.relative_bounding_box
+            ih, iw, _ = frame.shape
+            top = int(bboxC.ymin * ih)
+            left = int(bboxC.xmin * iw)
+            bottom = int((bboxC.ymin + bboxC.height) * ih)
+            right = int((bboxC.xmin + bboxC.width) * iw)
+            boxes.append((top, right, bottom, left))
+
+    return boxes
+
+
+def get_frame():
+    if ENV == "PI":
+        return vs.capture_array()
+    else:
+        return vs.read()
+
+
+def handle_frame():
+    """
+    Gets a frame and detects human faces
+    :return the encoding of said faces and their locations relative to the frame
+    """
+    frame = get_frame()
+    if frame is None:
+        return frame, [], []
+
+    frame = imutils.resize(frame, width=500)
+    face_detection_res = face_detection.process(frame)
+    boxes = convert_face_detection_to_boxes(face_detection_res, frame)
+    encodings = face_recognition.face_encodings(frame, boxes)
+
+    return frame, boxes, encodings
+
+
 def activate_camera(frame_info=None, show_on_screen=False):
     if frame_info is None:
         frame_info = {}
@@ -272,18 +323,11 @@ def activate_camera(frame_info=None, show_on_screen=False):
     users = []
 
     while True:
+        start_time = time.time()
         update_data()
 
-        if ENV == "PI":
-            frame = vs.capture_array()
-        else:
-            frame = vs.read()
-
-        frame = imutils.resize(frame, width=500)
-        boxes = face_recognition.face_locations(frame)
-        encodings = face_recognition.face_encodings(frame, boxes)
+        frame, boxes, encodings = handle_frame()
         amount_of_faces = max(amount_of_faces, len(boxes))
-
         users = match_existing_faces(encodings, users)
 
         if show_on_screen or "user_connections" in frame_info and len(frame_info["user_connections"]) > 0:
@@ -314,11 +358,9 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
         frame_info["frame"] = frame
 
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord("q"):
-            break
-
-        time.sleep(1 / frame_info["frame_rate"])
+        iteration_time = time.time() - start_time
+        sleep_time = max(1 / frame_info["frame_rate"] - iteration_time, 0)
+        time.sleep(sleep_time)
 
     cv2.destroyAllWindows()
     vs.stop()
@@ -327,4 +369,3 @@ def activate_camera(frame_info=None, show_on_screen=False):
 if __name__ == '__main__':
     initialize_firebase()
     activate_camera(show_on_screen=True)
-

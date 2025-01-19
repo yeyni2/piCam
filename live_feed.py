@@ -11,7 +11,7 @@ from flask_socketio import SocketIO, disconnect
 from firebase_admin import auth, firestore
 from typing import List, Tuple, Dict, Any
 from facial_req import activate_camera
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from flask_cors import CORS
 from functools import wraps
 import threading
@@ -26,6 +26,18 @@ log.disabled = True
 
 frame_info = {"frame": "", "user_connections": set()}
 frame_info_lock = threading.Lock()
+
+
+def verify_user_token(user_id_token):
+    try:
+        decoded_token = auth.verify_id_token(user_id_token)
+        uid = decoded_token.get("uid")
+    except auth.InvalidIdTokenError:
+        return {"message": 'Invalid ID token', "status": 401}
+    except Exception as e:
+        return {"message": str(e), "status": 500}
+
+    return {"message": "", "status": 200, "uid": uid}
 
 
 def verify_firebase_user_id_token(func):
@@ -44,13 +56,12 @@ def verify_firebase_user_id_token(func):
         if user_id_token.startswith('Bearer '):
             user_id_token = user_id_token.split(' ')[1]
 
-        try:
-            decoded_token = auth.verify_id_token(user_id_token)
-            request.user = decoded_token
-        except auth.InvalidIdTokenError:
-            return "Invalid ID token", 401
-        except Exception as e:
-            return "something went wrong", 500
+        token_verification_data = verify_user_token(user_id_token=user_id_token)
+
+        if token_verification_data.get("status") != 200:
+            return token_verification_data.get("message"), token_verification_data.get("status")
+
+        request.user = token_verification_data.get("uid")
 
         return func(*args, **kwargs)
 
@@ -91,7 +102,7 @@ def generate_signed_url(image_paths: list) -> list:
     signed_urls = []
     for image_path in image_paths:
         blob = get_storage_blob(image_path)
-        expiration_time = datetime.timedelta(hours=1)
+        expiration_time = timedelta(hours=1)
 
         signed_url = blob.generate_signed_url(
             version='v4',
@@ -104,7 +115,12 @@ def generate_signed_url(image_paths: list) -> list:
 
 
 def get_cams_admin(cam: str) -> str:
-    return get_firestore_ref(collection="cams", document=cam).get().get("adminUser")
+    cams_ref = get_firestore_ref(collection="cameras", document=cam)
+
+    if not cams_ref.get().exists:
+        return ""
+
+    return get_firestore_ref(collection="cameras", document=cam).get().get("adminUser")
 
 
 def is_new_id_valid(it_to_check: str, collection: str) -> bool:
@@ -120,27 +136,33 @@ def gen_random_id(collection: str) -> str:
             return request_id
 
 
-def build_join_cam_request(uid: str, cams_name: str, options: dict):
+def build_join_cam_request(uid: str, cams_name: str, options: dict, comment: str):
     """
+    :param comment: text from the sender to the admin
     :param uid: user id
     :param cams_name: cams name/id
     :param options: dict or request relevant options
     :return: A dict of data about the request
     """
     # TODO: move this to utils script
+    user_data = get_firestore_ref(collection="users", document=uid).get().to_dict()
+
     request_id = gen_random_id(collection="requests")
 
     return request_id, {
         "sender_id": uid,
-        "cam": cams_name,
+        "sender_name": user_data.get("name", "no name"),
+        "sender_email": user_data.get("email", ""),
+        "sender_comment": comment,
+        "camera": cams_name,
         "options": options,
         "status": "pending",
         "timestamp": datetime.now(timezone.utc)
     }
 
 
-def update_reqeust_related_users(request_id: str, request_data):
-    cams_admin = get_cams_admin(request_data.get("cam"))
+def update_request_related_users(request_id: str, request_data):
+    cams_admin = get_cams_admin(request_data.get("camera"))
     if cams_admin is None:
         raise Exception("Cam is not valid")
 
@@ -156,21 +178,77 @@ def update_reqeust_related_users(request_id: str, request_data):
     })
 
 
-def create_request(uid: str, cams_name: str, options: dict):
+def create_request(uid: str, cams_name: str, options: dict, comment: str):
     """
     Creates a request and saves it to the relevant locations in db
+    :param comment: text from the sender to the admin
     :param uid: user id
     :param cams_name: cams name/id
     :param options: dict of relevant options for the request
     """
     # TODO: move this to utils script
 
-    request_id, request_data = build_join_cam_request(uid=uid, cams_name=cams_name, options=options)
+    request_id, request_data = build_join_cam_request(uid=uid, cams_name=cams_name, options=options, comment=comment)
 
     req_ref = get_firestore_ref(collection="requests", document=request_id)
     req_ref.set(request_data)
 
-    update_reqeust_related_users(request_id=request_id, request_data=request_data)
+    update_request_related_users(request_id=request_id, request_data=request_data)
+
+
+def handle_request_answer(requests_id, admin_id, sender_id, camera, answer_details, options):
+    requests_ref = get_firestore_ref(collection="requests", document=requests_id)
+    admin_ref = get_firestore_ref(collection="users", document=admin_id)
+
+    update_req_data = {"status": answer_details.get("verdict"), "admin_comment": answer_details.get("admin_comment"),
+                       "concluded": True}
+    requests_ref.update(update_req_data)
+
+    admin_ref.update({
+        "adminPendingRequests": firestore.ArrayRemove([requests_id])
+    })
+
+    if answer_details.get("verdict") == "approved":
+        sender_ref = get_firestore_ref(collection="users", document=sender_id)
+        cam_ref = get_firestore_ref(collection="cameras", document=camera)
+
+        update_cam_details = {}
+
+        if options["useAccountImages"]:
+            add_new_image(sender_id, sender_ref.get().to_dict().get("images", []))
+
+        if options["requestLiveFeed"]:
+            if sender_id not in cam_ref.get().to_dict().get("usersToNotify", []):
+                update_cam_details["usersToNotify"] = sender_id
+
+        if options["requestLiveFeed"]:
+            if sender_id not in cam_ref.get().to_dict().get("videoAccess", []):
+                update_cam_details["videoAccess"] = sender_id
+
+        cam_ref.update(update_cam_details)
+        sender_ref.update({"cameras": firestore.ArrayUnion([camera])})
+
+
+def handle_request_delete(request_id: str, is_admin: bool, is_concluded: bool):
+    request_ref = get_firestore_ref(collection="requests", document=request_id)
+    request_data = request_ref.get().to_dict()
+    user_ref = get_firestore_ref(collection='users', document=request_data.get("sender_id"))
+    admin_ref = get_firestore_ref(collection='users', document=get_cams_admin(request_data.get("camera")))
+
+    if not is_concluded or is_admin:
+        admin_ref.update({
+            "adminPendingRequests": firestore.ArrayRemove([request_id])
+        })
+
+    if is_admin:
+        return
+
+    user_ref.update({
+        "myRequests": firestore.ArrayRemove([request_id])
+    })
+
+    if not request_ref.get().to_dict().get("concluded", None):
+        request_ref.delete()
 
 
 def gen_frames():
@@ -191,21 +269,38 @@ def gen_frames():
 def on_connect():
     user_id_token = request.args.get("userIdToken")
 
-    try:
-        auth.verify_id_token(user_id_token)
-    except auth.InvalidIdTokenError:
-        disconnect()
-        return 'Invalid ID token', 401
-    except Exception as e:
-        disconnect()
-        return "something went wrong", 500
+    token_verification_data = verify_user_token(user_id_token)
+    if token_verification_data.get("status") != 200:
+        return token_verification_data.get("message"), token_verification_data.get("status")
 
 
 @socketio.on('video_feed')
-def handle_request_stream():
+def handle_request_stream(data):
+    validation_data = verify_live_feed_access(camera=data.get("cameras"), user_id_token=data.get("userIdToken"))
+
+    if validation_data.get("status") != 200:
+        disconnect()
+        return validation_data.get("message", ""), validation_data.get("status")
+
     with frame_info_lock:
         frame_info["user_connections"].add(request.sid)
     socketio.start_background_task(gen_frames)
+
+
+def verify_live_feed_access(user_id_token, camera):
+    token_verification_data = verify_user_token(user_id_token)
+    if token_verification_data.get("status") != 200:
+        return token_verification_data
+
+    cams_ref = get_firestore_ref(collection="cameras", document=camera)
+
+    if not cams_ref.get().exists:
+        return {"message": "camera doesn't exist", "status": 500}
+
+    if token_verification_data.get("uid") not in cams_ref.get().to_dict().get("videoAccess"):
+        return {"message": "unauthorised access", "status": 403}
+
+    return {"message": "", "status": 200}
 
 
 @socketio.on('disconnect')
@@ -220,9 +315,9 @@ def set_user_token():
     data = request.get_json()
     token = data.get('messageToken')
 
-    user_ref = get_firestore_ref(collection='users', document=request.user["uid"])
+    user_ref = get_firestore_ref(collection='users', document=request.user)
     if not user_ref.get().exists:
-        return "unauthorised access", 500
+        return "unauthorised access", 403
 
     user_ref.update({"messageToken": token})
     return "", 200
@@ -231,28 +326,36 @@ def set_user_token():
 @app.route("/api/get_account_info")
 @verify_firebase_user_id_token
 def get_account_info():
-    user_id = request.user.get("uid")
+    user_id = request.user
     user_ref = get_firestore_ref(collection="users", document=user_id)
     images_list = []
+    admin_cams = []
 
     user_doc = user_ref.get()
 
     if not user_doc.exists:
-        return "unauthorised access", 500
+        return "unauthorised access", 403
 
     user_data = user_doc.to_dict()
     singed_urls = generate_signed_url(user_data.get("images"))
 
-    if len(singed_urls) != len(user_data.get("images")):
+    if len(singed_urls) != len(user_data.get("images", [])):
         return "A problem with the images was found", 401
 
     for index in range(len(singed_urls)):
         images_list.append({"imagePath": user_data.get("images")[index], "url": singed_urls[index]})
 
+    if "adminCams" in user_data:
+        for cam in user_data.get("adminCams"):
+            if get_cams_admin(cam) == user_id:
+                admin_cams.append(cam)
+
     account_details = {
         'email': user_data.get('email'),
-        'name': user_data.get('name'),
-        'images': images_list
+        'name': user_data.get('name', ''),
+        'images': images_list,
+        "cameras": user_data.get("cameras", []),
+        "admin_cams": admin_cams
     }
 
     return jsonify(account_details), 200
@@ -263,11 +366,11 @@ def get_account_info():
 def edit_account_details():
     name = request.form.get("name")
     images = request.files.getlist('images')
-    user_id = request.user.get('uid')
+    user_id = request.user
 
     user_ref = get_firestore_ref(collection='users', document=user_id)
     if not user_ref.get().exists:
-        return "unauthorised access", 500
+        return "unauthorised access", 403
 
     existing_name = user_ref.get().get("name")
     new_images = upload_images(images, user_id)
@@ -285,8 +388,8 @@ def edit_account_details():
 
     user_ref.set(set_data, merge=True)
 
-    for cam in user_ref.get().get("cams"):
-        add_new_image(user_id, image_paths)
+    for cam in user_ref.get().get("cameras"):
+        add_new_image(user_id, image_paths)  # TODO: this will be specific to the cam
         if existing_name != name:
             update_name(user_id)
 
@@ -297,7 +400,7 @@ def edit_account_details():
 @verify_firebase_user_id_token
 def delete_image_from_account():
     image_path = request.get_json().get('imagePath')
-    user_id = request.user.get('uid')
+    user_id = request.user
 
     if not image_path:
         return "Missing image path to delete"
@@ -305,7 +408,7 @@ def delete_image_from_account():
     try:
         user_ref = get_firestore_ref(collection='users', document=user_id)
         if not user_ref.get().exists:
-            return "unauthorised access", 500
+            return "unauthorised access", 403
 
         user_ref.update({
             "images": firestore.ArrayRemove([image_path])
@@ -313,7 +416,7 @@ def delete_image_from_account():
 
         get_storage_blob(image_path).delete()
 
-        for cam in user_ref.get().get("cams"):
+        for cam in user_ref.get().get("cameras"):
             # TODO: This will need to send a request to the cam to handles its own delete
             remove_image(user_id, [image_path])
 
@@ -327,38 +430,145 @@ def delete_image_from_account():
 @app.route("/api/add_new_user", methods=['POST'])
 @verify_firebase_user_id_token
 def add_new_user():
-    user_id = request.user['uid']
+    user_id = request.user
     user_email = request.user.get("email")
 
     user_ref = get_firestore_ref(collection='users', document=user_id)
     if user_ref.get().exists:
         return "User with this email already exists", 500
 
-    user_ref.set({"email": user_email}, merge=True)
+    user_ref.set({"email": user_email, "name": "", "cameras": [], "images": []}, merge=True)
 
     return "", 200
+
+
+@app.route("/api/admin_request_answer", methods=["POST"])
+@verify_firebase_user_id_token
+def admin_request_answer():
+    requests_data = request.get_json()
+    admin_id = request.user
+    cams_name = requests_data.get("camera")
+    sender_id = requests_data.get("sender_id")
+    requests_id = requests_data.get("request_id")
+    options = requests_data.get("options")
+    answer = requests_data.get("answer")
+
+    user_ref = get_firestore_ref(collection='users', document=admin_id)
+    cams_ref = get_firestore_ref(collection="cameras", document=cams_name)
+    requests_ref = get_firestore_ref(collection="requests", document=requests_id)
+
+    if not user_ref.get().exists:
+        return "unauthorised access", 403
+
+    if not cams_ref.get().exists:
+        return "cam not found", 500
+
+    if not requests_ref.get().exists:
+        return "requests not found", 500
+
+    if get_cams_admin(cams_name) != admin_id:
+        return "unauthorised access", 403
+
+    handle_request_answer(requests_id=requests_id, admin_id=admin_id, sender_id=sender_id, camera=cams_name,
+                          answer_details=answer, options=options)
+
+    # TODO: Both parties may want to delete the request as some point after its done, add that option
 
 
 @app.route("/api/join_cam_request", methods=['POST'])
 @verify_firebase_user_id_token
 def join_cam_request():
-    # Firstly get the cams name, and the requests options in a dict like:
-    # {"request_live_feed": True, "get_notifications": True, "allow_to_add_images": False}
     requests_data = request.get_json()
-    request_options = requests_data["options"]
-    cams_name = requests_data.get("name")
-    user_id = request.user["uid"]
+    request_options = requests_data.get("options")
+    cams_name = requests_data.get("camera")
+    comment = requests_data.get("sender_comment")
+    user_id = request.user
 
     user_ref = get_firestore_ref(collection='users', document=user_id)
-    cams_ref = get_firestore_ref(collection="cams", document=cams_name)
+    cams_ref = get_firestore_ref(collection="cameras", document=cams_name)
 
     if not user_ref.get().exists:
-        return "unauthorised access", 500
+        return "unauthorised access", 403
 
     if not cams_ref.get().exists:
         return "cam not found", 500
 
-    create_request(uid=user_id, cams_name=cams_name, options=request_options)
+    if not user_ref.get().to_dict().get("name", None):
+        return "user must have a name", 500
+
+    create_request(uid=user_id, cams_name=cams_name, options=request_options, comment=comment)
+
+
+def get_requests(field_name: str, user_data: dict):
+    request_ids = user_data.get(field_name, [])
+    requests = []
+
+    for req_id in request_ids:
+        request_data = get_firestore_ref(collection="requests", document=req_id).get().get('')
+        request_data["request_id"] = req_id
+        requests.append(request_data)
+
+    return requests
+
+
+@app.route("/api/get_my_requests", methods=['GET'])
+@verify_firebase_user_id_token
+def get_my_requests():
+    user_id = request.user
+
+    user_ref = get_firestore_ref(collection='users', document=user_id)
+    if not user_ref.get().exists:
+        return "unauthorised access", 403
+
+    user_data = user_ref.get().to_dict()
+
+    return get_requests(user_data=user_data, field_name="myRequests"), 200
+
+
+@app.route("/api/get_cam_requests", methods=['GET'])
+@verify_firebase_user_id_token
+def get_cam_requests():
+    admin_id = request.user
+    user_ref = get_firestore_ref(collection='users', document=admin_id)
+
+    if not user_ref.get().exists:
+        return "unauthorised access", 403
+
+    user_data = user_ref.get().to_dict()
+
+    return get_requests(user_data=user_data, field_name="adminPendingRequests"), 200
+
+
+@app.route("/api/delete_request", methods=['DELETE'])
+@verify_firebase_user_id_token
+def delete_request():
+    user_id = request.user
+    request_id = request.get_json().get("request_id")
+
+    user_ref = get_firestore_ref(collection='users', document=user_id)
+    request_ref = get_firestore_ref(collection="requests", document=request_id)
+    is_admin = False
+    is_concluded = False
+
+    if not user_ref.get().exists:
+        return "unauthorised access", 403
+
+    if not request_ref.get().exists:
+        return "request not found"
+
+    if user_id == get_cams_admin(request_ref.get().to_dict().get("camera", "")):
+        is_admin = True
+
+    if request_ref.get().to_dict().get("sender_id", "") != user_id and not is_admin:
+        return "unauthorised access", 403
+
+    if request_ref.get().to_dict().get("concluded", None):
+        is_concluded = True
+
+    if not is_concluded and is_admin:
+        return "can't delete open request", 500
+
+    handle_request_delete(request_id=request_id, is_admin=is_admin, is_concluded=is_concluded)
 
 
 @app.route('/', defaults={'path': ''})
@@ -375,7 +585,8 @@ def serve_vue_app(path):
 
 
 def start_face_recognition():
-    thread = None
+    thread = threading.Thread(target=activate_camera, args=(frame_info,), daemon=True)
+    thread.start()
 
     while True:
         if thread is None or not thread.is_alive():

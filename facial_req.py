@@ -321,49 +321,50 @@ def activate_camera(frame_info=None, show_on_screen=False):
     amount_of_faces = 0
     expect_face = False
     users = []
+    try:
+        while True:
+            start_time = time.time()
+            update_data()
 
-    while True:
-        start_time = time.time()
-        update_data()
+            frame, boxes, encodings = handle_frame()
+            amount_of_faces = max(amount_of_faces, len(boxes))
+            users = match_existing_faces(encodings, users)
 
-        frame, boxes, encodings = handle_frame()
-        amount_of_faces = max(amount_of_faces, len(boxes))
-        users = match_existing_faces(encodings, users)
+            if show_on_screen or "user_connections" in frame_info and len(frame_info["user_connections"]) > 0:
+                user_connected = True
+            else:
+                user_connected = False
 
-        if show_on_screen or "user_connections" in frame_info and len(frame_info["user_connections"]) > 0:
-            user_connected = True
-        else:
-            user_connected = False
+            if len(users) > 0 or expect_face:
+                expect_face = True
+                frames_validate_count += 1
 
-        if len(users) > 0 or expect_face:
-            expect_face = True
-            frames_validate_count += 1
+            frame_info["frame_rate"] = get_fps(user_connected, expect_face)
 
-        frame_info["frame_rate"] = get_fps(user_connected, expect_face)
+            if user_connected or show_on_screen:
+                frame = draw_box_around_faces(boxes, users, frame)
 
-        if user_connected or show_on_screen:
-            frame = draw_box_around_faces(boxes, users, frame)
+            if frames_validate_count == FRAME_NOTIFICATION_THRESHOLD:
+                if len(users) > 0:
+                    notify_relevant_users(seen_users=users, expected_faces_count=amount_of_faces)
 
-        if frames_validate_count == FRAME_NOTIFICATION_THRESHOLD:
-            if len(users) > 0:
-                notify_relevant_users(seen_users=users, expected_faces_count=amount_of_faces)
+                expect_face = False
+                frames_validate_count = 0
+                users = []
+                amount_of_faces = 0
 
-            expect_face = False
-            frames_validate_count = 0
-            users = []
-            amount_of_faces = 0
+            if show_on_screen:
+                cv2.imshow("Facial Recognition is Running", frame)
 
-        if show_on_screen:
-            cv2.imshow("Facial Recognition is Running", frame)
+            frame_info["frame"] = frame
 
-        frame_info["frame"] = frame
-
-        iteration_time = time.time() - start_time
-        sleep_time = max(1 / frame_info["frame_rate"] - iteration_time, 0)
-        time.sleep(sleep_time)
-
-    cv2.destroyAllWindows()
-    vs.stop()
+            iteration_time = time.time() - start_time
+            sleep_time = max(1 / frame_info["frame_rate"] - iteration_time, 0)
+            time.sleep(sleep_time)
+    finally:
+        cv2.destroyAllWindows()
+        vs.stop()
+        print("somthing failed!!!!!!!!!")
 
 
 if __name__ == '__main__':

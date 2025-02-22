@@ -119,11 +119,11 @@ def remove_image(uid: str, firebase_image_path: list):
 
 
 def update_name(uid: str):
-    if uid not in data:
+    if uid not in data["users"]:
         raise Exception("user doesn't exist")
 
-    data_ref = get_firestore_ref(collection="users", document=uid).get()
-    name = data_ref.get("name")
+    data_ref = get_firestore_ref(collection="users", document=uid).get().to_dict()
+    name = data_ref.get("name", None)
     if not name:
         raise Exception("No name was entered")
 

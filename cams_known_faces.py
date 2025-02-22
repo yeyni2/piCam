@@ -9,8 +9,14 @@ from firebase_connection import get_firestore_ref, get_storage_blob
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 encodingsP = os.path.join(dir_path, 'encodings.pickle')
-with open(encodingsP, "rb") as file:
-    data = pickle.loads(file.read())
+
+try:
+    with open(encodingsP, "rb") as file:
+        data = pickle.loads(file.read())
+except:
+    with open(encodingsP, "wb") as file:
+        pickle.dump({}, file)
+        data = {}
 
 
 def update_pickle():

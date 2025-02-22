@@ -31,7 +31,7 @@ if ENV == "PI":
     from picamera2 import Picamera2
 
     vs = Picamera2()
-    config = vs.create_video_configuration(main={"format": "RGB888"}, controls={"FrameRate": 27.0})
+    config = vs.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"}, controls={"FrameRate": 25})
     vs.configure(config)
     vs.start()
     active_user_connection_fps = 25
@@ -146,7 +146,7 @@ def notify_relevant_users(seen_users: list, cam_name: str = "piCam", expected_fa
 
         if user_id not in relevant_users:
             pass
-            # send_message(token=user_msg_token, message_title=msg[0], message_body=msg[1])
+            send_message(token=user_msg_token, message_title=msg[0], message_body=msg[1])
 
 
 def filter_names(users: list, expected_faces_count: int = 1) -> set:
@@ -206,8 +206,8 @@ def filter_names(users: list, expected_faces_count: int = 1) -> set:
 
 
 def convert_temp_to_fps(temp: float) -> float:
-    fps = 19.98277 / (1 + math.exp(0.124135 * temp - 7.37577))
-    fps = max(0.15, fps)
+    fps = int(19.98277 / (1 + math.exp(0.124135 * temp - 7.37577)))
+    fps = max(3, fps)
     return fps
 
 

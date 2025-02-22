@@ -498,6 +498,9 @@ def join_cam_request():
     if not user_ref.get().to_dict().get("name", None):
         return "user must have a name", 500
 
+    if user_id == get_cams_admin(cams_name):
+        return "403", "Can't create a request to your own camera"
+
     create_request(uid=user_id, cams_name=cams_name, options=request_options, comment=comment)
 
     return "", 200

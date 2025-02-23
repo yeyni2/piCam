@@ -31,7 +31,7 @@ if ENV == "PI":
     from picamera2 import Picamera2
 
     vs = Picamera2()
-    config = vs.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"}, controls={"FrameRate": 25})
+    config = vs.create_preview_configuration(main={"format": "RGB888"}, controls={"FrameRate": 25})
     vs.configure(config)
     vs.start()
     active_user_connection_fps = 25

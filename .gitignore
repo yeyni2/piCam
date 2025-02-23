@@ -5,6 +5,7 @@ picamera/
 dlib/
 .venv
 .env
+/.env
 *.pyc
 __pycache__/
 

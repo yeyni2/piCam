@@ -596,6 +596,7 @@ def serve_vue_app(path):
 def start_face_recognition():
     thread = threading.Thread(target=activate_camera, args=(frame_info,), daemon=True)
     thread.start()
+    time_count = 0
 
     while True:
         try:
@@ -604,9 +605,12 @@ def start_face_recognition():
                 thread = threading.Thread(target=activate_camera, args=(frame_info,), daemon=True)
                 thread.start()
         except Exception as e:
-            print("the thread faild... ", e)
+            print("the thread failed... ", e)
         finally:
-            time.sleep(5)
+            time.sleep(30)
+            time_count += 30
+            if time_count >= 300: # 5 min
+                print("start face recognition function alive")
 
 def main():
     initialize_firebase()

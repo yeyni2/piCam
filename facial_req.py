@@ -271,7 +271,7 @@ def add_data_time(frame):
     now = datetime.datetime.now()
     date_time = now.strftime("%Y-%m-%d %H:%M:%S")
     cv2.putText(frame, date_time, (10, 50), cv2.FONT_HERSHEY_SIMPLEX,
-                .8, (255, 255, 255), 1)
+                .5, (255, 255, 255), 2)
     return frame
 
 
@@ -351,7 +351,8 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
             if user_connected or show_on_screen:
                 frame = draw_box_around_faces(boxes, users, frame)
-                frame = add_data_time(frame)
+
+            frame = add_data_time(frame)
 
             if frames_validate_count == FRAME_NOTIFICATION_THRESHOLD:
                 if len(users) > 0:

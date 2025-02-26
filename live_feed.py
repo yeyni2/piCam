@@ -612,9 +612,11 @@ def start_face_recognition():
             if time_count >= 300:  # 5 min
                 print("start face recognition function alive ", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 time_count = 0
-                if datetime.strptime(frame_info["last_validation"], "%Y-%m-%d %H:%M:%S") - datetime.now() < timedelta(minutes=5):
+                if ("last_validation" in frame_info and
+                        datetime.strptime(frame_info["last_validation"], "%Y-%m-%d %H:%M:%S") - datetime.now() < timedelta(minutes=5)):
                     print("last run validation check ", frame_info["last_validation"])
-                print("the frame is stuck? ",  frame_info["is_frame_stuck"])
+                if "is_frame_stuck" in frame_info:
+                    print("the frame is stuck? ",  frame_info["is_frame_stuck"])
 
 def main():
     initialize_firebase()

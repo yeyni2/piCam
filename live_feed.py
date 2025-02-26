@@ -3,7 +3,6 @@ import logging
 import base64
 import time
 import uuid
-import datetime
 
 from firebase_connection import get_firestore_ref, initialize_firebase, get_storage_blob
 from cams_known_faces import add_new_image, remove_image, update_name
@@ -611,7 +610,7 @@ def start_face_recognition():
             time.sleep(30)
             time_count += 30
             if time_count >= 300:  # 5 min
-                print("start face recognition function alive", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                print("start face recognition function alive ", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 time_count = 0
 
 

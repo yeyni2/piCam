@@ -4,7 +4,6 @@ from firebase_connection import get_firestore_ref, send_message, initialize_fire
 from imutils.video import VideoStream
 from typing import Tuple, List
 from dotenv import load_dotenv
-import datetime
 
 import face_recognition
 import mediapipe as mp
@@ -13,6 +12,8 @@ import pickle
 import time
 import cv2
 import os
+import datetime
+
 
 load_dotenv()
 
@@ -376,7 +377,7 @@ def activate_camera(frame_info=None, show_on_screen=False):
             time.sleep(sleep_time)
 
             if time.time() - time_count >= 300:
-                print("the loop is still running")
+                print("the loop is still running ", )
                 time_count = time.time()
                 if last_frame == frame:
                     print("frame is not changing")

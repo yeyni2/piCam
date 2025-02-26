@@ -376,11 +376,13 @@ def activate_camera(frame_info=None, show_on_screen=False):
             sleep_time = max(1 / frame_info["frame_rate"] - iteration_time, 0)
             time.sleep(sleep_time)
 
-            if time.time() - time_count >= 300:
-                print("the loop is still running ", )
+            if time.time() - time_count >= 60:
+                frame_info["last_validation"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 time_count = time.time()
                 if last_frame == frame:
-                    print("frame is not changing")
+                    frame_info["is_frame_stuck"] = True
+                else:
+                    frame_info["is_frame_stuck"] = False
 
     except Exception as e:
         print("face rec stopped", e)

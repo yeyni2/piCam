@@ -4,6 +4,7 @@ from firebase_connection import get_firestore_ref, send_message, initialize_fire
 from imutils.video import VideoStream
 from typing import Tuple, List
 from dotenv import load_dotenv
+import numpy as np
 
 import face_recognition
 import mediapipe as mp
@@ -377,13 +378,13 @@ def activate_camera(frame_info=None, show_on_screen=False):
             time.sleep(sleep_time)
 
             if time.time() - time_count >= 30:
-                frame_info["last_validation"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                frame_info["last_validation"] = str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 time_count = time.time()
-                if last_frame == frame:
+                if last_frame and np.array_equal(last_frame, frame):
                     frame_info["is_frame_stuck"] = True
                 else:
                     frame_info["is_frame_stuck"] = False
-
+                last_frame = frame
     except Exception as e:
         print("face rec stopped", e)
     finally:

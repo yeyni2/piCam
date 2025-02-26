@@ -598,12 +598,15 @@ def start_face_recognition():
     thread.start()
 
     while True:
-        if thread is None or not thread.is_alive():
-            print("restarting face rec")
-            thread = threading.Thread(target=activate_camera, args=(frame_info,), daemon=True)
-            thread.start()
-        time.sleep(5)
-
+        try:
+            if thread is None or not thread.is_alive():
+                print("restarting face rec")
+                thread = threading.Thread(target=activate_camera, args=(frame_info,), daemon=True)
+                thread.start()
+        except Exception as e:
+            print("the thread faild... ", e)
+        finally:
+            time.sleep(5)
 
 def main():
     initialize_firebase()

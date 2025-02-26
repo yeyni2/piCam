@@ -4,6 +4,7 @@ from firebase_connection import get_firestore_ref, send_message, initialize_fire
 from imutils.video import VideoStream
 from typing import Tuple, List
 from dotenv import load_dotenv
+import datetime
 
 import face_recognition
 import mediapipe as mp
@@ -144,6 +145,7 @@ def notify_relevant_users(seen_users: list, cam_name: str = "piCam", expected_fa
         except:
             continue
         if user_id not in relevant_users:
+
             send_message(token=user_msg_token, message_title=msg[0], message_body=msg[1])
 
 
@@ -265,6 +267,14 @@ def draw_box_around_faces(boxes: list, users: list, frame):
     return frame
 
 
+def add_data_time(frame):
+    now = datetime.datetime.now()
+    date_time = now.strftime("%Y-%m-%d %H:%M:%S")
+    cv2.putText(frame, date_time, (10, 50), cv2.FONT_HERSHEY_SIMPLEX,
+                .8, (255, 255, 255), 1)
+    return frame
+
+
 def convert_face_detection_to_boxes(face_detection_res, frame):
     """
 
@@ -341,6 +351,7 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
             if user_connected or show_on_screen:
                 frame = draw_box_around_faces(boxes, users, frame)
+                frame = add_data_time(frame)
 
             if frames_validate_count == FRAME_NOTIFICATION_THRESHOLD:
                 if len(users) > 0:
@@ -359,6 +370,8 @@ def activate_camera(frame_info=None, show_on_screen=False):
             iteration_time = time.time() - start_time
             sleep_time = max(1 / frame_info["frame_rate"] - iteration_time, 0)
             time.sleep(sleep_time)
+    except Exception as e:
+        print("face rec stopped", e)
     finally:
         cv2.destroyAllWindows()
         vs.stop()

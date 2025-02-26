@@ -329,6 +329,9 @@ def activate_camera(frame_info=None, show_on_screen=False):
     amount_of_faces = 0
     expect_face = False
     users = []
+    time_count = time.time()
+    last_frame = None
+
     try:
         while True:
             start_time = time.time()
@@ -371,6 +374,13 @@ def activate_camera(frame_info=None, show_on_screen=False):
             iteration_time = time.time() - start_time
             sleep_time = max(1 / frame_info["frame_rate"] - iteration_time, 0)
             time.sleep(sleep_time)
+
+            if time.time() - time_count >= 300:
+                print("the loop is still running")
+                time_count = time.time()
+                if last_frame == frame:
+                    print("frame is not changing")
+
     except Exception as e:
         print("face rec stopped", e)
     finally:

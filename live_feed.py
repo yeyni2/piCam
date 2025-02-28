@@ -617,6 +617,10 @@ def start_face_recognition():
                     print("last run validation check ", frame_info["last_validation"])
                 if "is_frame_stuck" in frame_info:
                     print("the frame is stuck? ",  frame_info["is_frame_stuck"])
+                if frame_info["error_message"] != "":
+                    print("there is an error from the loop")
+                    print(frame_info["error_message"])
+
 
 def main():
     initialize_firebase()

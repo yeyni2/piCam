@@ -15,7 +15,6 @@ import cv2
 import os
 import datetime
 
-
 load_dotenv()
 
 ENV = os.getenv("LOCATION")
@@ -34,7 +33,7 @@ if ENV == "PI":
     from picamera2 import Picamera2
 
     vs = Picamera2()
-    config = vs.create_preview_configuration(main={"format": "RGB888"}, controls={"FrameRate": 25})
+    config = vs.create_preview_configuration(buffer_count=10, main={"format": "RGB888"}, controls={"FrameRate": 25})
     vs.configure(config)
     vs.start()
     active_user_connection_fps = 25
@@ -147,7 +146,6 @@ def notify_relevant_users(seen_users: list, cam_name: str = "piCam", expected_fa
         except:
             continue
         if user_id not in relevant_users:
-
             send_message(token=user_msg_token, message_title=msg[0], message_body=msg[1])
 
 
@@ -301,7 +299,11 @@ def convert_face_detection_to_boxes(face_detection_res, frame):
 
 def get_frame():
     if ENV == "PI":
-        return vs.capture_array()
+        request = vs.capture_request()
+        frame = request.make_array("main")
+        request.release()
+        return frame
+        # return vs.capture_array()
     else:
         return vs.read()
 

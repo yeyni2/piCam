@@ -300,7 +300,7 @@ def convert_face_detection_to_boxes(face_detection_res, frame):
 def get_frame():
     if ENV == "PI":
         request = vs.capture_request()
-        frame = request.make_array("main")
+        frame = request.make_array("lores")
         request.release()
         return frame
         # return vs.capture_array()

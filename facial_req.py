@@ -399,4 +399,7 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
 if __name__ == '__main__':
     initialize_firebase()
-    activate_camera(show_on_screen=True)
+    if ENV == "PI":
+        activate_camera()
+    else:
+        activate_camera(show_on_screen=True)

@@ -4,6 +4,8 @@ import base64
 import time
 import uuid
 import threading
+import signal
+import sys
 import cv2
 
 from firebase_connection import get_firestore_ref, initialize_firebase, get_storage_blob
@@ -19,11 +21,6 @@ from functools import wraps
 
 from multiprocessing import Process, Manager
 
-manager = Manager()
-frame_info = manager.dict()
-frame_info["frame"] = ""
-frame_info["user_connections"] = set()
-
 app = Flask(__name__, static_folder="vueapp")
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -33,6 +30,8 @@ log.disabled = True
 
 # frame_info = {"frame": "", "user_connections": set()}
 # frame_info_lock = threading.Lock()
+frame_info = None
+watchdog_process = None
 
 
 def verify_user_token(user_id_token):
@@ -635,13 +634,32 @@ def start_face_recognition():
             time.sleep(30)
 
 
+def kill_watch_dog():
+    global watchdog_process
+    if watchdog_process:
+        watchdog_process.terminate()
+        watchdog_process.join()
+    sys.exit(0)
+
+
 def main():
+    global frame_info, watchdog_process
+
     initialize_firebase()
     time.sleep(1)
+
     # threading.Thread(target=start_face_recognition, daemon=True).start()
-    Process(target=start_face_recognition, daemon=True).start()
+    manager = Manager()
+    frame_info = manager.dict()
+    frame_info["frame"] = ""
+    frame_info["user_connections"] = manager.list()
+
+    watchdog_process = Process(target=start_face_recognition)
+    watchdog_process.start()
     socketio.run(app, host='0.0.0.0', port=3000, allow_unsafe_werkzeug=True)
 
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, kill_watch_dog)
+    signal.signal(signal.SIGTERM, kill_watch_dog)
     main()

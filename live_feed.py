@@ -32,6 +32,7 @@ log.disabled = True
 # frame_info_lock = threading.Lock()
 frame_info = None
 watchdog_process = None
+frame_info_lock = None
 
 
 def verify_user_token(user_id_token):
@@ -643,7 +644,7 @@ def kill_watch_dog():
 
 
 def main():
-    global frame_info, watchdog_process
+    global frame_info, watchdog_process, frame_info_lock
 
     initialize_firebase()
     time.sleep(1)
@@ -653,6 +654,7 @@ def main():
     frame_info = manager.dict()
     frame_info["frame"] = ""
     frame_info["user_connections"] = manager.list()
+    frame_info_lock = manager.Lock()
 
     watchdog_process = Process(target=start_face_recognition)
     watchdog_process.start()

@@ -36,7 +36,7 @@ if ENV == "PI":
     config = vs.create_preview_configuration(buffer_count=10, main={"format": "RGB888"}, controls={"FrameRate": 25})
     vs.configure(config)
     vs.start()
-    active_user_connection_fps = 25
+    active_user_connection_fps = 20
 else:
     vs = VideoStream(src=0, framerate=30).start()
     active_user_connection_fps = 30

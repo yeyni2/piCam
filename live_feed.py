@@ -3,6 +3,8 @@ import logging
 import base64
 import time
 import uuid
+import threading
+import cv2
 
 from firebase_connection import get_firestore_ref, initialize_firebase, get_storage_blob
 from cams_known_faces import add_new_image, remove_image, update_name
@@ -14,8 +16,13 @@ from facial_req import activate_camera
 from datetime import datetime, timezone, timedelta
 from flask_cors import CORS
 from functools import wraps
-import threading
-import cv2
+
+from multiprocessing import Process, Manager
+
+manager = Manager()
+frame_info = manager.dict()
+frame_info["frame"] = ""
+frame_info["user_connections"] = set()
 
 app = Flask(__name__, static_folder="vueapp")
 CORS(app)
@@ -24,8 +31,8 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 log = logging.getLogger('werkzeug')
 log.disabled = True
 
-frame_info = {"frame": "", "user_connections": set()}
-frame_info_lock = threading.Lock()
+# frame_info = {"frame": "", "user_connections": set()}
+# frame_info_lock = threading.Lock()
 
 
 def verify_user_token(user_id_token):
@@ -593,39 +600,46 @@ def serve_vue_app(path):
         return send_from_directory(app.static_folder, 'index.html')
 
 
+def is_face_recognition_stale():
+    if "last_validation" not in frame_info:
+        frame_info["last_validation"] = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        return True
+
+    last_time = datetime.strptime(frame_info["last_validation"], "%Y-%m-%d %H:%M:%S")
+    return (datetime.now() - last_time) > timedelta(minutes=5)
+
+
 def start_face_recognition():
-    thread = threading.Thread(target=activate_camera, args=(frame_info,), daemon=True)
-    thread.start()
-    time_count = 240
+    # thread = threading.Thread(target=activate_camera, args=(frame_info,), daemon=True)
+    # thread.start()
+    process = Process(target=activate_camera, args=(frame_info,), daemon=True)
+    process.start()
 
     while True:
         try:
-            if thread is None or not thread.is_alive():
-                print("restarting face rec")
-                thread = threading.Thread(target=activate_camera, args=(frame_info,), daemon=True)
-                thread.start()
+            if is_face_recognition_stale() and process.is_alive():
+                process.terminate()
+                process.join()
+
+            if not process.is_alive():
+                process = Process(target=activate_camera, args=(frame_info,), daemon=True)
+                process.start()
+
+            # if thread is None or not thread.is_alive() or is_face_recognition_stale():
+            #     print("restarting face rec")
+            #     thread = threading.Thread(target=activate_camera, args=(frame_info,), daemon=True)
+            #     thread.start()
         except Exception as e:
             print("the thread failed... ", e)
         finally:
             time.sleep(30)
-            time_count += 30
-            if time_count >= 300:  # 5 min
-                print("start face recognition function alive ", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                time_count = 0
-                if ("last_validation" in frame_info and
-                        datetime.strptime(frame_info["last_validation"], "%Y-%m-%d %H:%M:%S") - datetime.now() < timedelta(minutes=5)):
-                    print("last run validation check ", frame_info["last_validation"])
-                if "is_frame_stuck" in frame_info:
-                    print("the frame is stuck? ",  frame_info["is_frame_stuck"])
-                if frame_info["error_message"] != "":
-                    print("there is an error from the loop")
-                    print(frame_info["error_message"])
 
 
 def main():
     initialize_firebase()
     time.sleep(1)
-    threading.Thread(target=start_face_recognition, daemon=True).start()
+    # threading.Thread(target=start_face_recognition, daemon=True).start()
+    Process(target=start_face_recognition, daemon=True).start()
     socketio.run(app, host='0.0.0.0', port=3000, allow_unsafe_werkzeug=True)
 
 

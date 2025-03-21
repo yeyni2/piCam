@@ -390,7 +390,7 @@ def activate_camera(frame_info=None, show_on_screen=False):
                 last_frame = frame
     except Exception as e:
         print("face rec stopped", e)
-        frame_info["error_message"] = e + str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        frame_info["error_message"] = str(e) + str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     finally:
         cv2.destroyAllWindows()
         vs.stop()

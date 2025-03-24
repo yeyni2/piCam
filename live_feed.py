@@ -621,11 +621,11 @@ def start_face_recognition(frame_data):
 
     while True:
         try:
-            if is_face_recognition_stale() and process.is_alive():
+            if process is not None and is_face_recognition_stale() and process.is_alive():
                 process.terminate()
                 process.join()
 
-            if not process.is_alive():
+            if process is not None and not process.is_alive():
                 process = Process(target=activate_camera, args=(frame_data,), daemon=True)
                 process.start()
         except Exception as e:

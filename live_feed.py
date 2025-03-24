@@ -1,9 +1,9 @@
+import multiprocessing
 import os
 import logging
 import base64
 import time
 import uuid
-import threading
 import signal
 import sys
 import cv2
@@ -619,24 +619,31 @@ def start_face_recognition(frame_data):
     process = Process(target=activate_camera, args=(frame_data,), daemon=True)
     process.start()
 
-    while True:
-        try:
-            if process is not None and is_face_recognition_stale() and process.is_alive():
-                process.terminate()
-                process.join()
+    try:
 
-            if process is not None and not process.is_alive():
-                process = Process(target=activate_camera, args=(frame_data,), daemon=True)
-                process.start()
-        except Exception as e:
-            print("the thread failed... ", e)
-        finally:
-            time.sleep(30)
+        while True:
+            try:
+                if process is not None and is_face_recognition_stale() and process.is_alive():
+                    process.terminate()
+                    process.join()
+                    process = None
+
+                if process is None or not process.is_alive():
+                    process = Process(target=activate_camera, args=(frame_data,), daemon=True)
+                    process.start()
+            except Exception as e:
+                print("the thread failed... ", e)
+            finally:
+                time.sleep(30)
+    finally:
+        if process is not None and process.is_alive():
+            process.terminate()
+            process.join()
 
 
 def kill_watch_dog(sig, frame):
     global watchdog_process
-    if watchdog_process:
+    if watchdog_process and watchdog_process is not None:
         watchdog_process.terminate()
         watchdog_process.join()
     sys.exit(0)
@@ -660,6 +667,7 @@ def main():
 
 
 if __name__ == '__main__':
-    signal.signal(signal.SIGINT, kill_watch_dog)
-    signal.signal(signal.SIGTERM, kill_watch_dog)
+    if multiprocessing.current_process().name == "MainProcess":
+        signal.signal(signal.SIGINT, kill_watch_dog)
+        signal.signal(signal.SIGTERM, kill_watch_dog)
     main()

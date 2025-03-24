@@ -37,11 +37,12 @@ if ENV == "PI":
     vs.configure(config)
     vs.start()
     active_user_connection_fps = 20
+    time.sleep(2)
 else:
     vs = VideoStream(src=0, framerate=30).start()
     active_user_connection_fps = 30
 
-time.sleep(2.0)
+time.sleep(2)
 last_seen_users = {}
 
 # Make an operation only if person wasn't seen for the last 10 minutes or more

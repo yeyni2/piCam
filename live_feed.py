@@ -316,7 +316,8 @@ def verify_live_feed_access(user_id_token, camera):
 @socketio.on('disconnect')
 def handle_disconnect():
     with frame_info_lock:
-        frame_info["user_connections"].discard(request.sid)
+        if request.sid in frame_info["user_connections"] :
+            frame_info["user_connections"].remove(request.sid)
 
 
 @app.route('/api/set_token', methods=['POST'])

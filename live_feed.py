@@ -615,7 +615,8 @@ def is_face_recognition_stale():
     return (datetime.now() - last_time) > timedelta(minutes=5)
 
 
-def start_face_recognition(frame_data):
+def start_face_recognition(frame_data, parent_id):
+    time.sleep(6)
     process = Process(target=activate_camera, args=(frame_data,), daemon=True)
     process.start()
 
@@ -623,6 +624,9 @@ def start_face_recognition(frame_data):
 
         while True:
             try:
+                if os.getppid() != parent_id:
+                    sys.exit(1)
+
                 if process is not None and is_face_recognition_stale() and process.is_alive():
                     process.terminate()
                     process.join()
@@ -661,13 +665,13 @@ def main():
     frame_info["user_connections"] = manager.list()
     frame_info_lock = manager.Lock()
 
-    watchdog_process = Process(target=start_face_recognition, args=(frame_info,))
+    watchdog_process = Process(target=start_face_recognition, args=(frame_info, os.getppid(),))
     watchdog_process.start()
     socketio.run(app, host='0.0.0.0', port=3000, allow_unsafe_werkzeug=True)
 
 
 if __name__ == '__main__':
-    if multiprocessing.current_process().name == "MainProcess":
-        signal.signal(signal.SIGINT, kill_watch_dog)
-        signal.signal(signal.SIGTERM, kill_watch_dog)
+    # if multiprocessing.current_process().name == "MainProcess":
+        # signal.signal(signal.SIGINT, kill_watch_dog)
+        # signal.signal(signal.SIGTERM, kill_watch_dog)
     main()

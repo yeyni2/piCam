@@ -625,7 +625,10 @@ def start_face_recognition(frame_data, parent_id):
         while True:
             try:
                 if os.getppid() != parent_id:
-                    sys.exit(1)
+                    process.terminate()
+                    process.join()
+                    break
+                    # sys.exit(0)
 
                 if process is not None and is_face_recognition_stale() and process.is_alive():
                     process.terminate()

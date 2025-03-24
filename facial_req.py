@@ -146,8 +146,8 @@ def notify_relevant_users(seen_users: list, cam_name: str = "piCam", expected_fa
         except:
             continue
         if user_id not in relevant_users:
-            send_message(token=user_msg_token, message_title=msg[0], message_body=msg[1])
-
+            # send_message(token=user_msg_token, message_title=msg[0], message_body=msg[1])
+            pass
 
 def filter_names(users: list, expected_faces_count: int = 1) -> set:
     users_count = {}

@@ -39,7 +39,9 @@ if ENV == "PI":
     active_user_connection_fps = 20
     time.sleep(2)
 else:
-    vs = VideoStream(src=0, framerate=30).start()
+    rtsp_url = "rtsp://Lirans_picam:vygDX7ml75(d@picam.ddnsfree.com:1053/stream1"
+    vs = cv2.VideoCapture(rtsp_url)
+    # vs = VideoStream(src=0, framerate=30).start()
     active_user_connection_fps = 30
 
 time.sleep(2)
@@ -314,7 +316,7 @@ def handle_frame():
     Gets a frame and detects human faces
     :return the encoding of said faces and their locations relative to the frame
     """
-    frame = get_frame()
+    _, frame = get_frame()
     if frame is None:
         return frame, [], []
 
@@ -334,9 +336,6 @@ def activate_camera(frame_info=None, show_on_screen=False):
     amount_of_faces = 0
     expect_face = False
     users = []
-    time_count = time.time()
-    last_frame = None
-    frame_info["error_message"] = ""
 
     try:
         while True:
@@ -361,7 +360,7 @@ def activate_camera(frame_info=None, show_on_screen=False):
             if user_connected or show_on_screen:
                 frame = draw_box_around_faces(boxes, users, frame)
 
-            frame = add_data_time(frame)
+            # frame = add_data_time(frame)
 
             if frames_validate_count == FRAME_NOTIFICATION_THRESHOLD:
                 if len(users) > 0:
@@ -374,6 +373,7 @@ def activate_camera(frame_info=None, show_on_screen=False):
 
             if show_on_screen:
                 cv2.imshow("Facial Recognition is Running", frame)
+                cv2.waitKey(1)
 
             frame_info["frame"] = frame
 
@@ -381,20 +381,12 @@ def activate_camera(frame_info=None, show_on_screen=False):
             sleep_time = max(1 / frame_info["frame_rate"] - iteration_time, 0)
             time.sleep(sleep_time)
 
-            if time.time() - time_count >= 30:
-                frame_info["last_validation"] = str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                time_count = time.time()
-                if last_frame is not None and np.array_equal(last_frame, frame):
-                    frame_info["is_frame_stuck"] = True
-                else:
-                    frame_info["is_frame_stuck"] = False
-                last_frame = frame
     except Exception as e:
         print("face rec stopped", e)
         frame_info["error_message"] = str(e) + str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     finally:
         cv2.destroyAllWindows()
-        vs.stop()
+        vs.release()
         print("somthing failed!!!!!!!!!")
 
 

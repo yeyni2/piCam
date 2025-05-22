@@ -1,12 +1,8 @@
-import multiprocessing
 import os
 import logging
 import base64
 import time
 import uuid
-import signal
-import sys
-import cv2
 
 from firebase_connection import get_firestore_ref, initialize_firebase, get_storage_blob
 from cams_known_faces import add_new_image, remove_image, update_name
@@ -18,8 +14,8 @@ from facial_req import activate_camera
 from datetime import datetime, timezone, timedelta
 from flask_cors import CORS
 from functools import wraps
-
-from multiprocessing import Process, Manager
+import threading
+import cv2
 
 app = Flask(__name__, static_folder="vueapp")
 CORS(app)
@@ -28,11 +24,8 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 log = logging.getLogger('werkzeug')
 log.disabled = True
 
-# frame_info = {"frame": "", "user_connections": set()}
-# frame_info_lock = threading.Lock()
-frame_info = {}
-watchdog_process = None
-frame_info_lock = None
+frame_info = {"frame": "", "user_connections": set()}
+frame_info_lock = threading.Lock()
 
 
 def verify_user_token(user_id_token):
@@ -290,10 +283,8 @@ def handle_request_stream(data):
         disconnect()
         return validation_data.get("message", ""), validation_data.get("status")
 
-    with (frame_info_lock):
-        if request.sid not in frame_info["user_connections"]:
-            frame_info["user_connections"].append(request.sid)
-            # .add(request.sid)
+    with frame_info_lock:
+        frame_info["user_connections"].add(request.sid)
     socketio.start_background_task(gen_frames)
 
 
@@ -316,8 +307,7 @@ def verify_live_feed_access(user_id_token, camera):
 @socketio.on('disconnect')
 def handle_disconnect():
     with frame_info_lock:
-        if request.sid in frame_info["user_connections"] :
-            frame_info["user_connections"].remove(request.sid)
+        frame_info["user_connections"].discard(request.sid)
 
 
 @app.route('/api/set_token', methods=['POST'])
@@ -603,75 +593,26 @@ def serve_vue_app(path):
         return send_from_directory(app.static_folder, 'index.html')
 
 
-def is_face_recognition_stale():
-    if frame_info is None:
-        return True
+def start_face_recognition():
+    thread = threading.Thread(target=activate_camera, args=(frame_info,), daemon=True)
+    thread.start()
 
-    if "last_validation" not in frame_info:
-        frame_info["last_validation"] = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        return True
-
-    last_time = datetime.strptime(frame_info["last_validation"], "%Y-%m-%d %H:%M:%S")
-    return (datetime.now() - last_time) > timedelta(minutes=5)
-
-
-def start_face_recognition(frame_data):
-    process = Process(target=activate_camera, args=(frame_data,), daemon=True)
-    process.start()
-    parent_id = os.getppid()
-    try:
-        while True:
-            try:
-                if os.getppid() != parent_id:
-                    process.terminate()
-                    process.join()
-                    break
-
-                if process is not None and is_face_recognition_stale() and process.is_alive():
-                    process.terminate()
-                    process.join()
-                    process = None
-
-                if process is None or not process.is_alive():
-                    process = Process(target=activate_camera, args=(frame_data,), daemon=True)
-                    process.start()
-            except Exception as e:
-                print("the thread failed... ", e)
-            finally:
-                time.sleep(30)
-    finally:
-        if process is not None and process.is_alive():
-            process.terminate()
-            process.join()
-        sys.exit(0)
-
-# def kill_watch_dog(sig, frame):
-#     global watchdog_process
-#     if watchdog_process and watchdog_process is not None:
-#         watchdog_process.terminate()
-#         watchdog_process.join()
-#     sys.exit(0)
+    while True:
+        try:
+            if thread is None or not thread.is_alive():
+                print("restarting face rec")
+                thread = threading.Thread(target=activate_camera, args=(frame_info,), daemon=True)
+                thread.start()
+        except Exception as e:
+            print("the thread failed... ", e)
 
 
 def main():
-    global frame_info, watchdog_process, frame_info_lock
-
     initialize_firebase()
     time.sleep(1)
-
-    manager = Manager()
-    frame_info = manager.dict()
-    frame_info["frame"] = None
-    frame_info["user_connections"] = manager.list()
-    frame_info_lock = manager.Lock()
-
-    watchdog_process = Process(target=start_face_recognition, args=(frame_info,))
-    watchdog_process.start()
+    threading.Thread(target=start_face_recognition, daemon=True).start()
     socketio.run(app, host='0.0.0.0', port=3000, allow_unsafe_werkzeug=True)
 
 
 if __name__ == '__main__':
-    # if multiprocessing.current_process().name == "MainProcess":
-        # signal.signal(signal.SIGINT, kill_watch_dog)
-        # signal.signal(signal.SIGTERM, kill_watch_dog)
     main()
